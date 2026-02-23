@@ -16,7 +16,11 @@ from training_setup import filter_normal, train_val_test_split
 
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="QCBM pipeline for UNSW-NB15.")
-    parser.add_argument("--input", default="UNSW-NB15_cleaned.csv", help="Path to cleaned CSV.")
+    parser.add_argument(
+        "--input",
+        default="datasets/UNSW-NB15_cleaned.csv",
+        help="Path to cleaned CSV.",
+    )
     parser.add_argument("--output-dir", default="artifacts", help="Directory to write artifacts.")
     parser.add_argument("--features", default=",".join(DEFAULT_FEATURES), help="Comma-separated features.")
     parser.add_argument("--label-col", default="label", help="Label column name.")

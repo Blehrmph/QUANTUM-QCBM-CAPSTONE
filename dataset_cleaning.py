@@ -110,12 +110,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Clean UNSW-NB15 dataset.")
     parser.add_argument(
         "--input",
-        default="UNSW-NB15_combined.csv",
+        default="datasets/UNSW-NB15_combined.csv",
         help="Path to input CSV.",
     )
     parser.add_argument(
         "--output",
-        default="UNSW-NB15_cleaned.csv",
+        default="datasets/UNSW-NB15_cleaned.csv",
         help="Path to output CSV.",
     )
     parser.add_argument(
