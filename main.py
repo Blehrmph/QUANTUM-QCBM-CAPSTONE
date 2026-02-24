@@ -6,7 +6,13 @@ import numpy as np
 import pandas as pd
 
 from src.discretize import BinEdges, encode_bits, fit_bins, transform_bins
-from src.preprocessing import DEFAULT_FEATURES, DEFAULT_LOG1P_COLS, Scaler, apply_log1p, select_features
+from src.data.preprocessing import (
+    DEFAULT_FEATURES,
+    DEFAULT_LOG1P_COLS,
+    Scaler,
+    apply_log1p,
+    select_features,
+)
 from src.qcbm_train import QCBMConfig, train_qcbm
 from src.score_eval import evaluate, score_samples
 from src.training_setup import filter_normal, train_val_test_split
@@ -39,7 +45,7 @@ def build_arg_parser():
     parser.add_argument("--test-frac", type=float, default=0.2)
     parser.add_argument("--val-frac", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--qcbm-layers", type=int, default=2)
+    parser.add_argument("--qcbm-layers", type=int, default=3)
     parser.add_argument("--qcbm-iter", type=int, default=200)
     parser.add_argument("--spsa-a", type=float, default=0.2)
     parser.add_argument("--spsa-c", type=float, default=0.1)
