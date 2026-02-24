@@ -5,18 +5,18 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from discretize import BinEdges, encode_bits, fit_bins, transform_bins
-from preprocessing import DEFAULT_FEATURES, DEFAULT_LOG1P_COLS, Scaler, apply_log1p, select_features
-from qcbm_train import QCBMConfig, train_qcbm
-from score_eval import evaluate, score_samples
-from training_setup import filter_normal, train_val_test_split
+from src.discretize import BinEdges, encode_bits, fit_bins, transform_bins
+from src.preprocessing import DEFAULT_FEATURES, DEFAULT_LOG1P_COLS, Scaler, apply_log1p, select_features
+from src.qcbm_train import QCBMConfig, train_qcbm
+from src.score_eval import evaluate, score_samples
+from src.training_setup import filter_normal, train_val_test_split
 
 
 def build_arg_parser():
     parser = argparse.ArgumentParser(description="QCBM pipeline for UNSW-NB15.")
     parser.add_argument(
         "--input",
-        default="datasets/UNSW-NB15_cleaned.csv",
+        default="datasets/UNSW-NB15_core_features.csv",
         help="Path to cleaned CSV.",
     )
     parser.add_argument("--output-dir", default="artifacts", help="Directory to write artifacts.")
