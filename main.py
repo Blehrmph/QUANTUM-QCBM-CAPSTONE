@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import argparse
 import json
 from pathlib import Path
@@ -14,7 +12,7 @@ from score_eval import evaluate, score_samples
 from training_setup import filter_normal, train_val_test_split
 
 
-def build_arg_parser() -> argparse.ArgumentParser:
+def build_arg_parser():
     parser = argparse.ArgumentParser(description="QCBM pipeline for UNSW-NB15.")
     parser.add_argument(
         "--input",
@@ -40,17 +38,20 @@ def build_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
+def main():
     args = build_arg_parser().parse_args()
 
-    df = pd.read_csv(args.input)
+    print("Loading dataset...")
+    df = pd.read_csv(args.input, low_memory=False)
     if args.label_col not in df.columns:
         raise ValueError(f"Missing label column: {args.label_col}")
 
+    print("Selecting features...")
     features = [c.strip() for c in args.features.split(",") if c.strip()]
     X = select_features(df, features)
     y = df[args.label_col]
 
+    print("Splitting train/val/test...")
     splits = train_val_test_split(
         X,
         y,
@@ -61,25 +62,31 @@ def main() -> None:
     )
 
     if args.log1p:
+        print("Applying log1p to skewed features...")
         splits.X_train = apply_log1p(splits.X_train, DEFAULT_LOG1P_COLS)
         splits.X_val = apply_log1p(splits.X_val, DEFAULT_LOG1P_COLS)
         splits.X_test = apply_log1p(splits.X_test, DEFAULT_LOG1P_COLS)
 
+    print(f"Scaling features ({args.scaler})...")
     scaler = Scaler(mode=args.scaler).fit(splits.X_train, features)
     X_train = scaler.transform(splits.X_train, features)
     X_val = scaler.transform(splits.X_val, features)
     X_test = scaler.transform(splits.X_test, features)
 
+    print("Fitting discretization bins...")
     edges = fit_bins(X_train, features, n_bins=args.n_bins, strategy=args.bin_strategy)
+    print("Discretizing datasets...")
     btrain = transform_bins(X_train, edges)
     bval = transform_bins(X_val, edges)
     btest = transform_bins(X_test, edges)
 
+    print("Encoding bitstrings...")
     bit_train = encode_bits(btrain, bits_per_feature=args.bits_per_feature)
     bit_val = encode_bits(bval, bits_per_feature=args.bits_per_feature)
     bit_test = encode_bits(btest, bits_per_feature=args.bits_per_feature)
 
     if args.normal_only:
+        print("Filtering normal-only samples for training...")
         btrain_df, ytrain = filter_normal(pd.DataFrame(bit_train), splits.y_train.reset_index(drop=True))
         bit_train = btrain_df.to_numpy()
     else:
@@ -92,6 +99,7 @@ def main() -> None:
             "Reduce features or bits-per-feature."
         )
 
+    print(f"Training QCBM (qubits={n_qubits}, layers={args.qcbm_layers}, iters={args.qcbm_iter})...")
     config = QCBMConfig(
         n_qubits=n_qubits,
         n_layers=args.qcbm_layers,
@@ -102,9 +110,12 @@ def main() -> None:
     )
     train_out = train_qcbm(bit_train, config)
 
+    print("Scoring test set...")
     scores = score_samples(bit_test, train_out["model_dist"])
+    print("Evaluating metrics...")
     metrics = evaluate(splits.y_test.to_numpy(), scores)
 
+    print("Saving artifacts...")
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "scaler.json").write_text(json.dumps(scaler.to_dict(), indent=2))

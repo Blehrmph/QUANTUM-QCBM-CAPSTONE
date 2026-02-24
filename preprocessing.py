@@ -16,13 +16,9 @@ DEFAULT_FEATURES = [
     "Sload",
     "Dload",
     "tcprtt",
-    "total_bytes",
-    "total_pkts",
-    "bytes_ratio",
-    "pkt_ratio",
 ]
 
-DEFAULT_LOG1P_COLS = ["sbytes", "dbytes", "Sload", "Dload", "total_bytes"]
+DEFAULT_LOG1P_COLS = ["sbytes", "dbytes", "Sload", "Dload"]
 
 
 @dataclass

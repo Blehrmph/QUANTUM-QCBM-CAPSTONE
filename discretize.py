@@ -37,6 +37,9 @@ def fit_bins(
             bins = np.linspace(vmin, vmax, n_bins + 1).tolist()
         else:
             raise ValueError(f"Unknown binning strategy: {strategy}")
+        bins = list(dict.fromkeys(bins))
+        if len(bins) < 2:
+            bins = [-np.inf, np.inf]
         bins[0] = -np.inf
         bins[-1] = np.inf
         edges[c] = bins
@@ -46,7 +49,16 @@ def fit_bins(
 def transform_bins(df: pd.DataFrame, edges: BinEdges) -> pd.DataFrame:
     out = pd.DataFrame(index=df.index)
     for c, bins in edges.edges.items():
-        out[c] = pd.cut(df[c], bins=bins, labels=False, include_lowest=True).astype(int)
+        if len(bins) == 2:
+            out[c] = 0
+            continue
+        out[c] = pd.cut(
+            df[c],
+            bins=bins,
+            labels=False,
+            include_lowest=True,
+            duplicates="drop",
+        ).astype(int)
     return out
 
 
