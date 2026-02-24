@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from discretize import bitstrings_to_indices
+from src.discretize import bitstrings_to_indices
 
 
 @dataclass

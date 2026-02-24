@@ -10,6 +10,7 @@ from src.preprocessing import DEFAULT_FEATURES, DEFAULT_LOG1P_COLS, Scaler, appl
 from src.qcbm_train import QCBMConfig, train_qcbm
 from src.score_eval import evaluate, score_samples
 from src.training_setup import filter_normal, train_val_test_split
+from src.classical_lr import model_to_dict, score_logistic_regression, train_logistic_regression
 
 
 def build_arg_parser():
@@ -19,9 +20,16 @@ def build_arg_parser():
         default="datasets/UNSW-NB15_core_features.csv",
         help="Path to cleaned CSV.",
     )
+    parser.add_argument(
+        "--label-input",
+        default="datasets/UNSW-NB15_cleaned.csv",
+        help="CSV file to source labels from if missing in input.",
+    )
     parser.add_argument("--output-dir", default="artifacts", help="Directory to write artifacts.")
     parser.add_argument("--features", default=",".join(DEFAULT_FEATURES), help="Comma-separated features.")
     parser.add_argument("--label-col", default="label", help="Label column name.")
+    parser.add_argument("--mode", choices=["quantum", "classical"], default="quantum")
+    parser.add_argument("--smote", action="store_true", help="Apply SMOTE to training data (classical mode).")
     parser.add_argument("--log1p", action="store_true", help="Apply log1p to skewed columns.")
     parser.add_argument("--scaler", choices=["standard", "minmax"], default="standard")
     parser.add_argument("--n-bins", type=int, default=4)
@@ -44,7 +52,13 @@ def main():
     print("Loading dataset...")
     df = pd.read_csv(args.input, low_memory=False)
     if args.label_col not in df.columns:
-        raise ValueError(f"Missing label column: {args.label_col}")
+        if args.label_input:
+            labels_df = pd.read_csv(args.label_input, usecols=[args.label_col], low_memory=False)
+            if len(labels_df) != len(df):
+                raise ValueError("Label file row count does not match input file.")
+            df[args.label_col] = labels_df[args.label_col]
+        else:
+            raise ValueError(f"Missing label column: {args.label_col}")
 
     print("Selecting features...")
     features = [c.strip() for c in args.features.split(",") if c.strip()]
@@ -73,58 +87,81 @@ def main():
     X_val = scaler.transform(splits.X_val, features)
     X_test = scaler.transform(splits.X_test, features)
 
-    print("Fitting discretization bins...")
-    edges = fit_bins(X_train, features, n_bins=args.n_bins, strategy=args.bin_strategy)
-    print("Discretizing datasets...")
-    btrain = transform_bins(X_train, edges)
-    bval = transform_bins(X_val, edges)
-    btest = transform_bins(X_test, edges)
-
-    print("Encoding bitstrings...")
-    bit_train = encode_bits(btrain, bits_per_feature=args.bits_per_feature)
-    bit_val = encode_bits(bval, bits_per_feature=args.bits_per_feature)
-    bit_test = encode_bits(btest, bits_per_feature=args.bits_per_feature)
-
-    if args.normal_only:
-        print("Filtering normal-only samples for training...")
-        btrain_df, ytrain = filter_normal(pd.DataFrame(bit_train), splits.y_train.reset_index(drop=True))
-        bit_train = btrain_df.to_numpy()
+    if args.mode == "classical":
+        if args.smote:
+            try:
+                from imblearn.over_sampling import SMOTE
+            except Exception as exc:
+                raise ImportError(
+                    "imbalanced-learn is required for SMOTE. Install it or disable --smote."
+                ) from exc
+            print("Applying SMOTE to training data...")
+            smote = SMOTE(random_state=args.seed)
+            X_train, y_train = smote.fit_resample(X_train, splits.y_train)
+        else:
+            y_train = splits.y_train
+        print("Training Logistic Regression...")
+        model = train_logistic_regression(X_train, y_train)
+        print("Scoring test set...")
+        scores = score_logistic_regression(model, X_test)
+        print("Evaluating metrics...")
+        metrics = evaluate(splits.y_test.to_numpy(), scores)
     else:
-        ytrain = splits.y_train
+        print("Fitting discretization bins...")
+        edges = fit_bins(X_train, features, n_bins=args.n_bins, strategy=args.bin_strategy)
+        print("Discretizing datasets...")
+        btrain = transform_bins(X_train, edges)
+        bval = transform_bins(X_val, edges)
+        btest = transform_bins(X_test, edges)
 
-    n_qubits = bit_train.shape[1]
-    if n_qubits > 16:
-        raise ValueError(
-            f"n_qubits={n_qubits} is too large for statevector QCBM. "
-            "Reduce features or bits-per-feature."
+        print("Encoding bitstrings...")
+        bit_train = encode_bits(btrain, bits_per_feature=args.bits_per_feature)
+        bit_val = encode_bits(bval, bits_per_feature=args.bits_per_feature)
+        bit_test = encode_bits(btest, bits_per_feature=args.bits_per_feature)
+
+        if args.normal_only:
+            print("Filtering normal-only samples for training...")
+            btrain_df, ytrain = filter_normal(pd.DataFrame(bit_train), splits.y_train.reset_index(drop=True))
+            bit_train = btrain_df.to_numpy()
+        else:
+            ytrain = splits.y_train
+
+        n_qubits = bit_train.shape[1]
+        if n_qubits > 16:
+            raise ValueError(
+                f"n_qubits={n_qubits} is too large for statevector QCBM. "
+                "Reduce features or bits-per-feature."
+            )
+
+        print(f"Training QCBM (qubits={n_qubits}, layers={args.qcbm_layers}, iters={args.qcbm_iter})...")
+        config = QCBMConfig(
+            n_qubits=n_qubits,
+            n_layers=args.qcbm_layers,
+            max_iter=args.qcbm_iter,
+            seed=args.seed,
+            spsa_a=args.spsa_a,
+            spsa_c=args.spsa_c,
         )
+        train_out = train_qcbm(bit_train, config)
 
-    print(f"Training QCBM (qubits={n_qubits}, layers={args.qcbm_layers}, iters={args.qcbm_iter})...")
-    config = QCBMConfig(
-        n_qubits=n_qubits,
-        n_layers=args.qcbm_layers,
-        max_iter=args.qcbm_iter,
-        seed=args.seed,
-        spsa_a=args.spsa_a,
-        spsa_c=args.spsa_c,
-    )
-    train_out = train_qcbm(bit_train, config)
-
-    print("Scoring test set...")
-    scores = score_samples(bit_test, train_out["model_dist"])
-    print("Evaluating metrics...")
-    metrics = evaluate(splits.y_test.to_numpy(), scores)
+        print("Scoring test set...")
+        scores = score_samples(bit_test, train_out["model_dist"])
+        print("Evaluating metrics...")
+        metrics = evaluate(splits.y_test.to_numpy(), scores)
 
     print("Saving artifacts...")
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "scaler.json").write_text(json.dumps(scaler.to_dict(), indent=2))
-    (out_dir / "bins.json").write_text(json.dumps(edges.to_dict(), indent=2))
     (out_dir / "features.json").write_text(json.dumps({"features": features}, indent=2))
-    (out_dir / "qcbm_config.json").write_text(json.dumps(config.__dict__, indent=2))
     (out_dir / "metrics.json").write_text(json.dumps(metrics, indent=2))
-    np.save(out_dir / "theta.npy", train_out["theta"])
-    np.save(out_dir / "model_dist.npy", train_out["model_dist"])
+    if args.mode == "classical":
+        (out_dir / "classical_lr.json").write_text(json.dumps(model_to_dict(model), indent=2))
+    else:
+        (out_dir / "bins.json").write_text(json.dumps(edges.to_dict(), indent=2))
+        (out_dir / "qcbm_config.json").write_text(json.dumps(config.__dict__, indent=2))
+        np.save(out_dir / "theta.npy", train_out["theta"])
+        np.save(out_dir / "model_dist.npy", train_out["model_dist"])
 
     print("Training complete.")
     print(f"ROC-AUC: {metrics['roc_auc']:.4f}")

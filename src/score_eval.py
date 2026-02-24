@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from discretize import bitstrings_to_indices
+from src.discretize import bitstrings_to_indices
 
 
 def score_samples(bitstrings: np.ndarray, model_dist: np.ndarray, eps: float = 1e-12) -> np.ndarray:
