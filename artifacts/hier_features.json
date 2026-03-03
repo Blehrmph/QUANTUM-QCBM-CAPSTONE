@@ -1,0 +1,8 @@
+{
+  "features": [
+    "dur",
+    "sbytes",
+    "dbytes",
+    "tcprtt"
+  ]
+}
