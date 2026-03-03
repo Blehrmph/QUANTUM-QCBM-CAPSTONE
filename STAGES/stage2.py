@@ -5,7 +5,7 @@ from src.classical_lr import _import_sklearn
 
 def train_multiclass_logreg(X_train, y_train):
     LogisticRegression = _import_sklearn()
-    model = LogisticRegression(max_iter=1000, multi_class="multinomial", n_jobs=None)
+    model = LogisticRegression(max_iter=1000, n_jobs=None)
     model.fit(X_train, y_train)
     return model
 
