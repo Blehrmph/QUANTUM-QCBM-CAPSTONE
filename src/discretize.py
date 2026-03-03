@@ -72,10 +72,19 @@ def _int_to_bits(values: np.ndarray, bits: int) -> np.ndarray:
 def encode_bits(
     binned: pd.DataFrame,
     bits_per_feature: int = 2,
+    encoding: str = "binary",
+    n_bins: int | None = None,
 ) -> np.ndarray:
     arrays = []
     for c in binned.columns:
-        arrays.append(_int_to_bits(binned[c].to_numpy(), bits_per_feature))
+        values = binned[c].to_numpy()
+        if encoding == "gray":
+            if n_bins != 3 or bits_per_feature != 2:
+                raise ValueError("Gray encoding currently supports only n_bins=3 and bits_per_feature=2.")
+            lut = np.asarray([[0, 0], [0, 1], [1, 1]], dtype=np.int8)
+            arrays.append(lut[values])
+        else:
+            arrays.append(_int_to_bits(values, bits_per_feature))
     return np.concatenate(arrays, axis=1)
 
 

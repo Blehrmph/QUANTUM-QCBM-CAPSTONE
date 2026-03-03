@@ -52,9 +52,24 @@ def run_stage1(
     bval = transform_bins(X_val, edges)
     btest = transform_bins(X_test, edges)
 
-    bit_train = encode_bits(btrain, bits_per_feature=args.bits_per_feature)
-    bit_val = encode_bits(bval, bits_per_feature=args.bits_per_feature)
-    bit_test = encode_bits(btest, bits_per_feature=args.bits_per_feature)
+    bit_train = encode_bits(
+        btrain,
+        bits_per_feature=args.bits_per_feature,
+        encoding=args.encoding,
+        n_bins=args.n_bins,
+    )
+    bit_val = encode_bits(
+        bval,
+        bits_per_feature=args.bits_per_feature,
+        encoding=args.encoding,
+        n_bins=args.n_bins,
+    )
+    bit_test = encode_bits(
+        btest,
+        bits_per_feature=args.bits_per_feature,
+        encoding=args.encoding,
+        n_bins=args.n_bins,
+    )
 
     btrain_df, _ = filter_normal(pd.DataFrame(bit_train), y_train.reset_index(drop=True))
     bit_train_normal = btrain_df.to_numpy()
@@ -66,19 +81,34 @@ def run_stage1(
             "Reduce features or bits-per-feature."
         )
 
-    config = QCBMConfig(
-        n_qubits=n_qubits,
-        n_layers=args.qcbm_layers,
-        max_iter=args.qcbm_iter,
-        seed=args.seed,
-        spsa_a=args.spsa_a,
-        spsa_c=args.spsa_c,
-    )
-    train_out = train_qcbm(bit_train_normal, config)
+    ensemble = max(1, int(args.qcbm_ensemble))
+    if ensemble > 1:
+        print(f"Ensembling QCBM models: {ensemble}")
+    train_scores = np.zeros(len(bit_train), dtype=float)
+    val_scores = np.zeros(len(bit_val), dtype=float)
+    test_scores = np.zeros(len(bit_test), dtype=float)
+    thetas = []
+    model_dists = []
+    for i in range(ensemble):
+        seed = args.seed + i * 7
+        config = QCBMConfig(
+            n_qubits=n_qubits,
+            n_layers=args.qcbm_layers,
+            max_iter=args.qcbm_iter,
+            seed=seed,
+            spsa_a=args.spsa_a,
+            spsa_c=args.spsa_c,
+        )
+        train_out = train_qcbm(bit_train_normal, config)
+        thetas.append(train_out["theta"])
+        model_dists.append(train_out["model_dist"])
+        val_scores += score_samples(bit_val, train_out["model_dist"])
+        test_scores += score_samples(bit_test, train_out["model_dist"])
+        train_scores += score_samples(bit_train, train_out["model_dist"])
 
-    val_scores = score_samples(bit_val, train_out["model_dist"])
-    test_scores = score_samples(bit_test, train_out["model_dist"])
-    train_scores = score_samples(bit_train, train_out["model_dist"])
+    val_scores /= ensemble
+    test_scores /= ensemble
+    train_scores /= ensemble
 
     normal_mask_train = (y_train.reset_index(drop=True).to_numpy() == 0)
     normal_scores_train = train_scores[normal_mask_train]
@@ -110,9 +140,16 @@ def run_stage1(
 
     return {
         "edges": edges,
-        "qcbm_config": config,
-        "qcbm_theta": train_out["theta"],
-        "qcbm_model_dist": train_out["model_dist"],
+        "qcbm_config": QCBMConfig(
+            n_qubits=n_qubits,
+            n_layers=args.qcbm_layers,
+            max_iter=args.qcbm_iter,
+            seed=args.seed,
+            spsa_a=args.spsa_a,
+            spsa_c=args.spsa_c,
+        ),
+        "qcbm_theta": np.asarray(thetas),
+        "qcbm_model_dist": np.asarray(model_dists),
         "stage1_metrics": stage1_metrics,
         "pred_anom_train": pred_anom_train,
         "pred_anom_test": pred_anom_test,
