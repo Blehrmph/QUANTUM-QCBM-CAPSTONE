@@ -42,7 +42,6 @@ def build_arg_parser():
     parser.add_argument("--mi-top-k", type=int, default=8)
     parser.add_argument("--var-threshold", type=float, default=0.0)
     parser.add_argument("--tail-percentile", type=float, default=0.99)
-    parser.add_argument("--hybrid-alpha", type=float, default=0.7)
     return parser
 
 

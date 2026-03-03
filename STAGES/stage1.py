@@ -2,19 +2,10 @@ import json
 
 import numpy as np
 import pandas as pd
-
-from src.classical_lr import _import_sklearn
 from src.discretize import encode_bits, fit_bins, transform_bins
 from src.qcbm_train import QCBMConfig, train_qcbm
 from src.score_eval import evaluate, score_samples
 from src.training_setup import filter_normal
-
-
-def train_binary_logreg(X_train, y_train):
-    LogisticRegression = _import_sklearn()
-    model = LogisticRegression(max_iter=1000, n_jobs=None)
-    model.fit(X_train, y_train)
-    return model
 
 
 def find_best_threshold(y_true, scores):
@@ -108,33 +99,14 @@ def run_stage1(
     print(f"ROC-AUC: {stage1_metrics['roc_auc']:.4f}")
     print(f"PR-AUC: {stage1_metrics['pr_auc']:.4f}")
 
-    print("Stage 1 hybrid score (QCBM + classical baseline)...")
-    binary_model = train_binary_logreg(X_train, y_train)
-    prob_train = binary_model.predict_proba(X_train)[:, 1]
-    prob_val = binary_model.predict_proba(X_val)[:, 1]
-    prob_test = binary_model.predict_proba(X_test)[:, 1]
-    hybrid_train = args.hybrid_alpha * train_scores_z + (1.0 - args.hybrid_alpha) * prob_train
-    hybrid_val = args.hybrid_alpha * val_scores_z + (1.0 - args.hybrid_alpha) * prob_val
-    hybrid_test = args.hybrid_alpha * test_scores_z + (1.0 - args.hybrid_alpha) * prob_test
+    tail_t = float(np.quantile(train_scores_z[normal_mask_train], args.tail_percentile))
+    best_t, best_f1 = find_best_threshold(y_val.to_numpy(), val_scores_z)
 
-    hybrid_metrics = evaluate(y_test.to_numpy(), hybrid_test)
-    if hybrid_metrics["roc_auc"] < 0.5:
-        hybrid_test = -hybrid_test
-        hybrid_val = -hybrid_val
-        hybrid_train = -hybrid_train
-        hybrid_metrics = evaluate(y_test.to_numpy(), hybrid_test)
-
-    tail_t = float(np.quantile(hybrid_train[normal_mask_train], args.tail_percentile))
-    best_t, best_f1 = find_best_threshold(y_val.to_numpy(), hybrid_val)
-
-    print("Stage 1 hybrid metrics:")
-    print(f"ROC-AUC: {hybrid_metrics['roc_auc']:.4f}")
-    print(f"PR-AUC: {hybrid_metrics['pr_auc']:.4f}")
     print(f"Best val F1: {best_f1:.4f} at threshold {best_t:.6f}")
     print(f"Tail threshold (p={args.tail_percentile:.3f}): {tail_t:.6f}")
 
-    pred_anom_train = hybrid_train >= best_t
-    pred_anom_test = hybrid_test >= best_t
+    pred_anom_train = train_scores_z >= best_t
+    pred_anom_test = test_scores_z >= best_t
 
     return {
         "edges": edges,
@@ -142,7 +114,6 @@ def run_stage1(
         "qcbm_theta": train_out["theta"],
         "qcbm_model_dist": train_out["model_dist"],
         "stage1_metrics": stage1_metrics,
-        "hybrid_metrics": hybrid_metrics,
         "pred_anom_train": pred_anom_train,
         "pred_anom_test": pred_anom_test,
         "best_threshold": best_t,
@@ -152,9 +123,6 @@ def run_stage1(
 def save_stage1_artifacts(out_dir, stage1_out):
     (out_dir / "hier_stage1_metrics.json").write_text(
         json.dumps(stage1_out["stage1_metrics"], indent=2)
-    )
-    (out_dir / "hier_stage1_hybrid_metrics.json").write_text(
-        json.dumps(stage1_out["hybrid_metrics"], indent=2)
     )
     (out_dir / "hier_qcbm_config.json").write_text(
         json.dumps(stage1_out["qcbm_config"].__dict__, indent=2)
