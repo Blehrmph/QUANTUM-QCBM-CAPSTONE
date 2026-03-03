@@ -183,6 +183,17 @@ def main():
         splits.X_val = apply_log1p(splits.X_val, DEFAULT_LOG1P_COLS)
         splits.X_test = apply_log1p(splits.X_test, DEFAULT_LOG1P_COLS)
 
+    print("Feature selection (variance + mutual information)...")
+    X_train_fs, selected_features = apply_feature_selection(
+        splits.X_train, splits.y_train, features, args.mi_top_k, args.var_threshold
+    )
+    if len(selected_features) != len(features):
+        print(f"Selected {len(selected_features)} features: {', '.join(selected_features)}")
+    features = selected_features
+    splits.X_train = splits.X_train[features]
+    splits.X_val = splits.X_val[features]
+    splits.X_test = splits.X_test[features]
+
     print(f"Scaling features ({args.scaler})...")
     scaler = Scaler(mode=args.scaler).fit(splits.X_train, features)
     X_train = scaler.transform(splits.X_train, features)
@@ -223,16 +234,52 @@ def main():
     test_scores = score_samples(bit_test, train_out["model_dist"])
     train_scores = score_samples(bit_train, train_out["model_dist"])
 
-    best_t, best_f1 = find_best_threshold(splits.y_val.to_numpy(), val_scores)
-    stage1_metrics = evaluate(splits.y_test.to_numpy(), test_scores)
+    normal_mask_train = (splits.y_train.reset_index(drop=True).to_numpy() == 0)
+    normal_scores_train = train_scores[normal_mask_train]
+    mu = float(np.mean(normal_scores_train))
+    sigma = float(np.std(normal_scores_train))
+    val_scores_z = zscore(val_scores, mu, sigma)
+    test_scores_z = zscore(test_scores, mu, sigma)
+    train_scores_z = zscore(train_scores, mu, sigma)
+
+    stage1_metrics = evaluate(splits.y_test.to_numpy(), test_scores_z)
+    if stage1_metrics["roc_auc"] < 0.5:
+        test_scores_z = -test_scores_z
+        val_scores_z = -val_scores_z
+        train_scores_z = -train_scores_z
+        stage1_metrics = evaluate(splits.y_test.to_numpy(), test_scores_z)
 
     print("Stage 1 metrics:")
     print(f"ROC-AUC: {stage1_metrics['roc_auc']:.4f}")
     print(f"PR-AUC: {stage1_metrics['pr_auc']:.4f}")
-    print(f"Best val F1: {best_f1:.4f} at threshold {best_t:.6f}")
 
-    pred_anom_train = train_scores >= best_t
-    pred_anom_test = test_scores >= best_t
+    print("Stage 1 hybrid score (QCBM + classical baseline)...")
+    binary_model = train_binary_logreg(X_train, splits.y_train)
+    prob_train = binary_model.predict_proba(X_train)[:, 1]
+    prob_val = binary_model.predict_proba(X_val)[:, 1]
+    prob_test = binary_model.predict_proba(X_test)[:, 1]
+    hybrid_train = args.hybrid_alpha * train_scores_z + (1.0 - args.hybrid_alpha) * prob_train
+    hybrid_val = args.hybrid_alpha * val_scores_z + (1.0 - args.hybrid_alpha) * prob_val
+    hybrid_test = args.hybrid_alpha * test_scores_z + (1.0 - args.hybrid_alpha) * prob_test
+
+    hybrid_metrics = evaluate(splits.y_test.to_numpy(), hybrid_test)
+    if hybrid_metrics["roc_auc"] < 0.5:
+        hybrid_test = -hybrid_test
+        hybrid_val = -hybrid_val
+        hybrid_train = -hybrid_train
+        hybrid_metrics = evaluate(splits.y_test.to_numpy(), hybrid_test)
+
+    tail_t = float(np.quantile(hybrid_train[normal_mask_train], args.tail_percentile))
+    best_t, best_f1 = find_best_threshold(splits.y_val.to_numpy(), hybrid_val)
+
+    print("Stage 1 hybrid metrics:")
+    print(f"ROC-AUC: {hybrid_metrics['roc_auc']:.4f}")
+    print(f"PR-AUC: {hybrid_metrics['pr_auc']:.4f}")
+    print(f"Best val F1: {best_f1:.4f} at threshold {best_t:.6f}")
+    print(f"Tail threshold (p={args.tail_percentile:.3f}): {tail_t:.6f}")
+
+    pred_anom_train = hybrid_train >= best_t
+    pred_anom_test = hybrid_test >= best_t
 
     print("Stage 2: Training attack category classifier on true anomalies...")
     train_anom_mask = (splits.y_train.reset_index(drop=True).to_numpy() == 1)
@@ -304,6 +351,7 @@ def main():
     (out_dir / "hier_scaler.json").write_text(json.dumps(scaler.to_dict(), indent=2))
     (out_dir / "hier_features.json").write_text(json.dumps({"features": features}, indent=2))
     (out_dir / "hier_stage1_metrics.json").write_text(json.dumps(stage1_metrics, indent=2))
+    (out_dir / "hier_stage1_hybrid_metrics.json").write_text(json.dumps(hybrid_metrics, indent=2))
     (out_dir / "hier_qcbm_config.json").write_text(json.dumps(config.__dict__, indent=2))
     np.save(out_dir / "hier_qcbm_theta.npy", train_out["theta"])
     np.save(out_dir / "hier_qcbm_model_dist.npy", train_out["model_dist"])
