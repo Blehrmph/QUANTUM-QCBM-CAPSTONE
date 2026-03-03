@@ -1,0 +1,163 @@
+import json
+
+import numpy as np
+import pandas as pd
+
+from src.classical_lr import _import_sklearn
+from src.discretize import encode_bits, fit_bins, transform_bins
+from src.qcbm_train import QCBMConfig, train_qcbm
+from src.score_eval import evaluate, score_samples
+from src.training_setup import filter_normal
+
+
+def train_binary_logreg(X_train, y_train):
+    LogisticRegression = _import_sklearn()
+    model = LogisticRegression(max_iter=1000, n_jobs=None)
+    model.fit(X_train, y_train)
+    return model
+
+
+def find_best_threshold(y_true, scores):
+    thresholds = np.unique(scores)
+    if len(thresholds) > 200:
+        thresholds = np.quantile(scores, np.linspace(0.0, 1.0, 201))
+
+    best_t = thresholds[0]
+    best_f1 = -1.0
+    y_true = np.asarray(y_true)
+    scores = np.asarray(scores)
+    for t in thresholds:
+        y_pred = (scores >= t).astype(int)
+        tp = np.sum((y_pred == 1) & (y_true == 1))
+        fp = np.sum((y_pred == 1) & (y_true == 0))
+        fn = np.sum((y_pred == 0) & (y_true == 1))
+        precision = tp / (tp + fp) if (tp + fp) else 0.0
+        recall = tp / (tp + fn) if (tp + fn) else 0.0
+        f1 = (2 * precision * recall) / (precision + recall) if (precision + recall) else 0.0
+        if f1 > best_f1:
+            best_f1 = f1
+            best_t = t
+    return float(best_t), float(best_f1)
+
+
+def zscore(scores, mu, sigma):
+    denom = sigma if sigma else 1.0
+    return (scores - mu) / denom
+
+
+def run_stage1(
+    X_train,
+    X_val,
+    X_test,
+    y_train,
+    y_val,
+    y_test,
+    features,
+    args,
+):
+    print("Stage 1: Training QCBM on normal traffic...")
+    edges = fit_bins(X_train, features, n_bins=args.n_bins, strategy=args.bin_strategy)
+    btrain = transform_bins(X_train, edges)
+    bval = transform_bins(X_val, edges)
+    btest = transform_bins(X_test, edges)
+
+    bit_train = encode_bits(btrain, bits_per_feature=args.bits_per_feature)
+    bit_val = encode_bits(bval, bits_per_feature=args.bits_per_feature)
+    bit_test = encode_bits(btest, bits_per_feature=args.bits_per_feature)
+
+    btrain_df, _ = filter_normal(pd.DataFrame(bit_train), y_train.reset_index(drop=True))
+    bit_train_normal = btrain_df.to_numpy()
+
+    n_qubits = bit_train_normal.shape[1]
+    if n_qubits > 16:
+        raise ValueError(
+            f"n_qubits={n_qubits} is too large for statevector QCBM. "
+            "Reduce features or bits-per-feature."
+        )
+
+    config = QCBMConfig(
+        n_qubits=n_qubits,
+        n_layers=args.qcbm_layers,
+        max_iter=args.qcbm_iter,
+        seed=args.seed,
+        spsa_a=args.spsa_a,
+        spsa_c=args.spsa_c,
+    )
+    train_out = train_qcbm(bit_train_normal, config)
+
+    val_scores = score_samples(bit_val, train_out["model_dist"])
+    test_scores = score_samples(bit_test, train_out["model_dist"])
+    train_scores = score_samples(bit_train, train_out["model_dist"])
+
+    normal_mask_train = (y_train.reset_index(drop=True).to_numpy() == 0)
+    normal_scores_train = train_scores[normal_mask_train]
+    mu = float(np.mean(normal_scores_train))
+    sigma = float(np.std(normal_scores_train))
+    val_scores_z = zscore(val_scores, mu, sigma)
+    test_scores_z = zscore(test_scores, mu, sigma)
+    train_scores_z = zscore(train_scores, mu, sigma)
+
+    stage1_metrics = evaluate(y_test.to_numpy(), test_scores_z)
+    if stage1_metrics["roc_auc"] < 0.5:
+        test_scores_z = -test_scores_z
+        val_scores_z = -val_scores_z
+        train_scores_z = -train_scores_z
+        stage1_metrics = evaluate(y_test.to_numpy(), test_scores_z)
+
+    print("Stage 1 metrics:")
+    print(f"ROC-AUC: {stage1_metrics['roc_auc']:.4f}")
+    print(f"PR-AUC: {stage1_metrics['pr_auc']:.4f}")
+
+    print("Stage 1 hybrid score (QCBM + classical baseline)...")
+    binary_model = train_binary_logreg(X_train, y_train)
+    prob_train = binary_model.predict_proba(X_train)[:, 1]
+    prob_val = binary_model.predict_proba(X_val)[:, 1]
+    prob_test = binary_model.predict_proba(X_test)[:, 1]
+    hybrid_train = args.hybrid_alpha * train_scores_z + (1.0 - args.hybrid_alpha) * prob_train
+    hybrid_val = args.hybrid_alpha * val_scores_z + (1.0 - args.hybrid_alpha) * prob_val
+    hybrid_test = args.hybrid_alpha * test_scores_z + (1.0 - args.hybrid_alpha) * prob_test
+
+    hybrid_metrics = evaluate(y_test.to_numpy(), hybrid_test)
+    if hybrid_metrics["roc_auc"] < 0.5:
+        hybrid_test = -hybrid_test
+        hybrid_val = -hybrid_val
+        hybrid_train = -hybrid_train
+        hybrid_metrics = evaluate(y_test.to_numpy(), hybrid_test)
+
+    tail_t = float(np.quantile(hybrid_train[normal_mask_train], args.tail_percentile))
+    best_t, best_f1 = find_best_threshold(y_val.to_numpy(), hybrid_val)
+
+    print("Stage 1 hybrid metrics:")
+    print(f"ROC-AUC: {hybrid_metrics['roc_auc']:.4f}")
+    print(f"PR-AUC: {hybrid_metrics['pr_auc']:.4f}")
+    print(f"Best val F1: {best_f1:.4f} at threshold {best_t:.6f}")
+    print(f"Tail threshold (p={args.tail_percentile:.3f}): {tail_t:.6f}")
+
+    pred_anom_train = hybrid_train >= best_t
+    pred_anom_test = hybrid_test >= best_t
+
+    return {
+        "edges": edges,
+        "qcbm_config": config,
+        "qcbm_theta": train_out["theta"],
+        "qcbm_model_dist": train_out["model_dist"],
+        "stage1_metrics": stage1_metrics,
+        "hybrid_metrics": hybrid_metrics,
+        "pred_anom_train": pred_anom_train,
+        "pred_anom_test": pred_anom_test,
+        "best_threshold": best_t,
+    }
+
+
+def save_stage1_artifacts(out_dir, stage1_out):
+    (out_dir / "hier_stage1_metrics.json").write_text(
+        json.dumps(stage1_out["stage1_metrics"], indent=2)
+    )
+    (out_dir / "hier_stage1_hybrid_metrics.json").write_text(
+        json.dumps(stage1_out["hybrid_metrics"], indent=2)
+    )
+    (out_dir / "hier_qcbm_config.json").write_text(
+        json.dumps(stage1_out["qcbm_config"].__dict__, indent=2)
+    )
+    np.save(out_dir / "hier_qcbm_theta.npy", stage1_out["qcbm_theta"])
+    np.save(out_dir / "hier_qcbm_model_dist.npy", stage1_out["qcbm_model_dist"])
