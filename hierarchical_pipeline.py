@@ -28,22 +28,29 @@ def build_arg_parser():
     parser.add_argument("--features", default="dur,sbytes,dbytes,tcprtt")
     parser.add_argument("--log1p", action="store_true")
     parser.add_argument("--scaler", choices=["standard", "minmax"], default="standard")
-    parser.add_argument("--n-bins", type=int, default=2)
-    parser.add_argument("--bits-per-feature", type=int, default=1)
+    parser.add_argument("--n-bins", type=int, default=3)
+    parser.add_argument("--bits-per-feature", type=int, default=2)
     parser.add_argument("--bin-strategy", choices=["quantile", "uniform"], default="quantile")
-    parser.add_argument("--encoding", choices=["binary", "gray"], default="binary")
+    parser.add_argument("--encoding", choices=["binary", "gray"], default="gray")
     parser.add_argument("--test-frac", type=float, default=0.2)
     parser.add_argument("--val-frac", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--qcbm-layers", type=int, default=3)
-    parser.add_argument("--qcbm-iter", type=int, default=600)
-    parser.add_argument("--qcbm-ensemble", type=int, default=5)
+    parser.add_argument("--qcbm-iter", type=int, default=800)
+    parser.add_argument("--qcbm-ensemble", type=int, default=1)
     parser.add_argument("--spsa-a", type=float, default=0.2)
     parser.add_argument("--spsa-c", type=float, default=0.1)
     parser.add_argument("--min-subtype-samples", type=int, default=10)
     parser.add_argument("--mi-top-k", type=int, default=8)
     parser.add_argument("--var-threshold", type=float, default=0.0)
     parser.add_argument("--tail-percentile", type=float, default=0.99)
+    parser.add_argument("--stage1-only", action="store_true", help="Run only Stage 1.")
+    parser.add_argument("--sweep", action="store_true", help="Run a small Stage 1 sweep and report best.")
+    parser.add_argument("--sweep-bins", default="2,3", help="Comma-separated bins to try.")
+    parser.add_argument("--sweep-encodings", default="binary,gray", help="Comma-separated encodings to try.")
+    parser.add_argument("--sweep-ensembles", default="1,3", help="Comma-separated ensemble sizes to try.")
+    parser.add_argument("--sweep-bits", default="1,2", help="Comma-separated bits per feature to try.")
+    parser.add_argument("--sweep-iters", default="300,600", help="Comma-separated QCBM iters to try.")
     return parser
 
 
@@ -93,6 +100,14 @@ def apply_feature_selection(X_train, y_train, features, top_k, var_threshold):
     selected_features = [features_var[i] for i in keep_idx]
     X_sel = X_var[selected_features]
     return X_sel, selected_features
+
+
+def _parse_int_list(value):
+    return [int(v.strip()) for v in value.split(",") if v.strip()]
+
+
+def _parse_str_list(value):
+    return [v.strip() for v in value.split(",") if v.strip()]
 
 
 def main():
@@ -158,6 +173,89 @@ def main():
     X_val = scaler.transform(splits.X_val, features)
     X_test = scaler.transform(splits.X_test, features)
 
+    if args.sweep:
+        bins_list = _parse_int_list(args.sweep_bins)
+        enc_list = _parse_str_list(args.sweep_encodings)
+        ens_list = _parse_int_list(args.sweep_ensembles)
+        bits_list = _parse_int_list(args.sweep_bits)
+        iter_list = _parse_int_list(args.sweep_iters)
+
+        results = []
+        base_bits = args.bits_per_feature
+        base_bins = args.n_bins
+        base_enc = args.encoding
+        base_ens = args.qcbm_ensemble
+        base_iter = args.qcbm_iter
+
+        print("Stage 1 sweep...")
+        for n_bins in bins_list:
+            for enc in enc_list:
+                if n_bins == 2 and enc != "binary":
+                    continue
+                if n_bins == 3 and enc not in ("binary", "gray"):
+                    continue
+                for bits in bits_list:
+                    for ens in ens_list:
+                        for iters in iter_list:
+                            if enc == "gray" and not (n_bins == 3 and bits == 2):
+                                continue
+                            args.n_bins = n_bins
+                            args.encoding = enc
+                            args.bits_per_feature = bits
+                            args.qcbm_ensemble = ens
+                            args.qcbm_iter = iters
+
+                            print(
+                                f"Try: bins={n_bins}, encoding={enc}, bits={bits}, "
+                                f"ensemble={ens}, iters={iters}"
+                            )
+                            out = run_stage1(
+                                X_train,
+                                X_val,
+                                X_test,
+                                splits.y_train,
+                                splits.y_val,
+                                splits.y_test,
+                                features,
+                                args,
+                            )
+                            metrics = out["stage1_metrics"]
+                            results.append(
+                                {
+                                    "n_bins": n_bins,
+                                    "encoding": enc,
+                                    "bits_per_feature": bits,
+                                    "ensemble": ens,
+                                    "qcbm_iter": iters,
+                                    "roc_auc": metrics["roc_auc"],
+                                    "pr_auc": metrics["pr_auc"],
+                                }
+                            )
+
+        args.bits_per_feature = base_bits
+        args.n_bins = base_bins
+        args.encoding = base_enc
+        args.qcbm_ensemble = base_ens
+        args.qcbm_iter = base_iter
+
+        if results:
+            best = sorted(results, key=lambda r: (r["roc_auc"], r["pr_auc"]), reverse=True)[0]
+            print("Best sweep result:")
+            print(
+                f"ROC-AUC: {best['roc_auc']:.4f} | PR-AUC: {best['pr_auc']:.4f} | "
+                f"bins={best['n_bins']} enc={best['encoding']} bits={best['bits_per_feature']} "
+                f"ensemble={best['ensemble']} iters={best['qcbm_iter']}"
+            )
+
+            print("Saving sweep results...")
+            from pathlib import Path
+            out_dir = Path(args.output_dir)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            (out_dir / "hier_stage1_sweep.json").write_text(json.dumps(results, indent=2))
+
+        print("Sweep complete.")
+        return
+
     stage1_out = run_stage1(
         X_train,
         X_val,
@@ -168,6 +266,17 @@ def main():
         features,
         args,
     )
+
+    if args.stage1_only:
+        print("Saving artifacts...")
+        from pathlib import Path
+        out_dir = Path(args.output_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "hier_scaler.json").write_text(json.dumps(scaler.to_dict(), indent=2))
+        (out_dir / "hier_features.json").write_text(json.dumps({"features": features}, indent=2))
+        save_stage1_artifacts(out_dir, stage1_out)
+        print("Stage 1 complete.")
+        return
 
     stage2_model = run_stage2(
         X_train,
