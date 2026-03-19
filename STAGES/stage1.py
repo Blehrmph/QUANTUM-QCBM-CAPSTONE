@@ -135,6 +135,7 @@ def run_stage1(
             spsa_c=args.spsa_c,
             lambda_contrast=args.lambda_contrast,
             contrast_margin=args.contrast_margin,
+            laplace_alpha=args.laplace_alpha,
         )
         train_out = train_qcbm(bit_train_normal, config, anomaly_bitstrings=bit_train_anomaly)
         thetas.append(train_out["theta"])

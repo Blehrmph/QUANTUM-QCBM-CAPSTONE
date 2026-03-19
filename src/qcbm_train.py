@@ -16,7 +16,8 @@ class QCBMConfig:
     spsa_a: float = 0.628  # calibrated: first step ~0.3 rad
     spsa_c: float = 0.1
     lambda_contrast: float = 0.5   # weight of contrastive term
-    contrast_margin: float = 0.3   # min JS distance from anomaly distribution
+    contrast_margin: float = 0.3   # min KL distance from anomaly distribution
+    laplace_alpha: float = 1.0     # Laplace smoothing on empirical distribution
 
 
 def _import_qiskit():
@@ -72,11 +73,30 @@ def qcbm_distribution(theta: np.ndarray, config: QCBMConfig) -> np.ndarray:
     return probs
 
 
-def empirical_distribution(bitstrings: np.ndarray, n_qubits: int) -> np.ndarray:
+def empirical_distribution(
+    bitstrings: np.ndarray,
+    n_qubits: int,
+    alpha: float = 0.0,
+) -> np.ndarray:
+    """Build empirical probability distribution over 2^n_qubits bitstring states.
+
+    Parameters
+    ----------
+    alpha : float
+        Laplace smoothing parameter. Adds `alpha` pseudo-counts to every state
+        before normalising. Benefits:
+        - States unseen in training get probability alpha/(N + alpha*2^n) instead
+          of 0, preventing -log(eps) score spikes on rare-but-legitimate normal
+          traffic (reduces false alarm rate).
+        - Smooths the target distribution, making KL divergence gradients more
+          stable during SPSA optimisation.
+        alpha=0 disables smoothing (raw counts). alpha=1 is add-one smoothing.
+    """
     indices = bitstrings_to_indices(bitstrings)
     counts = np.bincount(indices, minlength=2**n_qubits).astype(float)
     if counts.sum() == 0:
         raise ValueError("No data to build empirical distribution.")
+    counts += alpha
     return counts / counts.sum()
 
 
@@ -182,12 +202,18 @@ def train_qcbm(
         Set lambda_contrast=0 to disable.
     """
     n_qubits = config.n_qubits
-    data_dist = empirical_distribution(bitstrings, n_qubits)
+    data_dist = empirical_distribution(bitstrings, n_qubits, alpha=config.laplace_alpha)
+    if config.laplace_alpha > 0:
+        print(f"  Laplace smoothing α={config.laplace_alpha}")
 
+    # Always build anomaly_dist for diagnostics; only use in loss if λ > 0
     anomaly_dist = None
-    if anomaly_bitstrings is not None and len(anomaly_bitstrings) > 0 and config.lambda_contrast > 0:
-        anomaly_dist = empirical_distribution(anomaly_bitstrings, n_qubits)
-        print(f"  Contrastive loss enabled  λ={config.lambda_contrast}  margin={config.contrast_margin}")
+    _anomaly_dist_diag = None
+    if anomaly_bitstrings is not None and len(anomaly_bitstrings) > 0:
+        _anomaly_dist_diag = empirical_distribution(anomaly_bitstrings, n_qubits, alpha=config.laplace_alpha)
+        if config.lambda_contrast > 0:
+            anomaly_dist = _anomaly_dist_diag
+            print(f"  Contrastive loss enabled  lambda={config.lambda_contrast}  margin={config.contrast_margin}")
 
     rng = np.random.default_rng(config.seed)
     n_theta = n_params(n_qubits, config.n_layers)
@@ -215,6 +241,13 @@ def train_qcbm(
 
     model_dist = qcbm_distribution(theta, config)
     final_loss = kl_divergence(data_dist, model_dist)
+
+    # Always report anomaly KL — critical for calibrating --contrast-margin
+    if _anomaly_dist_diag is not None:
+        final_anomaly_kl = kl_divergence(_anomaly_dist_diag, model_dist)
+        print(f"  Final KL(normal || model) : {final_loss:.6f}")
+        print(f"  Final KL(anomaly || model): {final_anomaly_kl:.6f}"
+              f"  (set --contrast-margin above this to activate contrastive loss)")
 
     return {
         "theta": theta,
