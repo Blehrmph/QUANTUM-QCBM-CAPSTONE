@@ -25,13 +25,13 @@ def build_arg_parser():
     parser.add_argument("--attack-col", default="attack_cat")
     parser.add_argument("--subtype-col", default="")
     parser.add_argument("--output-dir", default="artifacts")
-    parser.add_argument("--features", default="dur,sbytes,dbytes,tcprtt")
-    parser.add_argument("--log1p", action="store_true")
+    parser.add_argument("--features", default="dur,sbytes,dbytes,tcprtt,Spkts,Dpkts,Sload,Dload")
+    parser.add_argument("--log1p", action="store_true", default=True)
     parser.add_argument("--scaler", choices=["standard", "minmax"], default="standard")
-    parser.add_argument("--n-bins", type=int, default=3)
-    parser.add_argument("--bits-per-feature", type=int, default=2)
+    parser.add_argument("--n-bins", type=int, default=2)
+    parser.add_argument("--bits-per-feature", type=int, default=1)
     parser.add_argument("--bin-strategy", choices=["quantile", "uniform"], default="quantile")
-    parser.add_argument("--encoding", choices=["binary", "gray"], default="gray")
+    parser.add_argument("--encoding", choices=["binary", "gray"], default="binary")
     parser.add_argument("--test-frac", type=float, default=0.2)
     parser.add_argument("--val-frac", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=42)
@@ -229,6 +229,10 @@ def main():
                                     "qcbm_iter": iters,
                                     "roc_auc": metrics["roc_auc"],
                                     "pr_auc": metrics["pr_auc"],
+                                    "f1": metrics.get("f1"),
+                                    "recall_dr": metrics.get("recall_dr"),
+                                    "far": metrics.get("far"),
+                                    "mcc": metrics.get("mcc"),
                                 }
                             )
 

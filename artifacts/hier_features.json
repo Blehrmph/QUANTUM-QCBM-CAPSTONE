@@ -1,8 +1,12 @@
 {
   "features": [
     "sbytes",
+    "Sload",
     "dbytes",
+    "Dload",
+    "Dpkts",
     "tcprtt",
+    "Spkts",
     "dur"
   ]
 }

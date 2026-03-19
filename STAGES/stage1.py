@@ -118,6 +118,7 @@ def run_stage1(
     test_scores_z = zscore(test_scores, mu, sigma)
     train_scores_z = zscore(train_scores, mu, sigma)
 
+    # Preliminary ranking metrics (no threshold needed)
     stage1_metrics = evaluate(y_test.to_numpy(), test_scores_z)
     if stage1_metrics["roc_auc"] < 0.5:
         test_scores_z = -test_scores_z
@@ -125,15 +126,26 @@ def run_stage1(
         train_scores_z = -train_scores_z
         stage1_metrics = evaluate(y_test.to_numpy(), test_scores_z)
 
-    print("Stage 1 metrics:")
-    print(f"ROC-AUC: {stage1_metrics['roc_auc']:.4f}")
-    print(f"PR-AUC: {stage1_metrics['pr_auc']:.4f}")
-
     tail_t = float(np.quantile(train_scores_z[normal_mask_train], args.tail_percentile))
     best_t, best_f1 = find_best_threshold(y_val.to_numpy(), val_scores_z)
 
-    print(f"Best val F1: {best_f1:.4f} at threshold {best_t:.6f}")
-    print(f"Tail threshold (p={args.tail_percentile:.3f}): {tail_t:.6f}")
+    # Re-evaluate with the best threshold to get full confusion-matrix metrics
+    stage1_metrics = evaluate(y_test.to_numpy(), test_scores_z, threshold=best_t)
+
+    print("Stage 1 metrics:")
+    print(f"  ROC-AUC   : {stage1_metrics['roc_auc']:.4f}")
+    print(f"  PR-AUC    : {stage1_metrics['pr_auc']:.4f}")
+    if "f1" in stage1_metrics:
+        print(f"  F1        : {stage1_metrics['f1']:.4f}")
+        print(f"  Precision : {stage1_metrics['precision']:.4f}")
+        print(f"  Recall/DR : {stage1_metrics['recall_dr']:.4f}")
+        print(f"  FAR       : {stage1_metrics['far']:.4f}")
+        print(f"  MCC       : {stage1_metrics['mcc']:.4f}")
+        print(f"  TP={stage1_metrics['tp']}  FP={stage1_metrics['fp']}  "
+              f"FN={stage1_metrics['fn']}  TN={stage1_metrics['tn']}")
+
+    print(f"  Best val F1: {best_f1:.4f} at threshold {best_t:.6f}")
+    print(f"  Tail threshold (p={args.tail_percentile:.3f}): {tail_t:.6f}")
 
     pred_anom_train = train_scores_z >= best_t
     pred_anom_test = test_scores_z >= best_t
