@@ -101,8 +101,13 @@ def run_stage1(
         n_bins=args.n_bins,
     )
 
-    btrain_df, _ = filter_normal(pd.DataFrame(bit_train), y_train.reset_index(drop=True))
+    y_train_reset = y_train.reset_index(drop=True)
+    btrain_df, _ = filter_normal(pd.DataFrame(bit_train), y_train_reset)
     bit_train_normal = btrain_df.to_numpy()
+
+    # Anomaly bitstrings for contrastive loss
+    anomaly_mask = (y_train_reset.to_numpy() == 1)
+    bit_train_anomaly = bit_train[anomaly_mask]
 
     n_qubits = bit_train_normal.shape[1]
     if n_qubits > 16:
@@ -128,12 +133,14 @@ def run_stage1(
             seed=seed,
             spsa_a=args.spsa_a,
             spsa_c=args.spsa_c,
+            lambda_contrast=args.lambda_contrast,
+            contrast_margin=args.contrast_margin,
         )
-        train_out = train_qcbm(bit_train_normal, config)
+        train_out = train_qcbm(bit_train_normal, config, anomaly_bitstrings=bit_train_anomaly)
         thetas.append(train_out["theta"])
         model_dists.append(train_out["model_dist"])
-        val_scores += score_samples(bit_val, train_out["model_dist"])
-        test_scores += score_samples(bit_test, train_out["model_dist"])
+        val_scores   += score_samples(bit_val,   train_out["model_dist"])
+        test_scores  += score_samples(bit_test,  train_out["model_dist"])
         train_scores += score_samples(bit_train, train_out["model_dist"])
 
     val_scores /= ensemble
@@ -203,6 +210,8 @@ def run_stage1(
             seed=args.seed,
             spsa_a=args.spsa_a,
             spsa_c=args.spsa_c,
+            lambda_contrast=args.lambda_contrast,
+            contrast_margin=args.contrast_margin,
         ),
         "qcbm_theta": np.asarray(thetas),
         "qcbm_model_dist": np.asarray(model_dists),

@@ -15,6 +15,8 @@ class QCBMConfig:
     seed: int = 42
     spsa_a: float = 0.628  # calibrated: first step ~0.3 rad
     spsa_c: float = 0.1
+    lambda_contrast: float = 0.5   # weight of contrastive term
+    contrast_margin: float = 0.3   # min JS distance from anomaly distribution
 
 
 def _import_qiskit():
@@ -50,15 +52,12 @@ def build_ansatz(n_qubits: int, n_layers: int, theta: np.ndarray):
     qc = QuantumCircuit(n_qubits)
     idx = 0
     for _ in range(n_layers):
-        # RZ-RY-RZ per qubit: 3 parameters each, spans full single-qubit SU(2)
         for q in range(n_qubits):
             qc.rz(theta[idx], q); idx += 1
             qc.ry(theta[idx], q); idx += 1
             qc.rz(theta[idx], q); idx += 1
-        # Circular CNOT entanglement: linear chain + wrap-around
         for q in range(n_qubits):
             qc.cx(q, (q + 1) % n_qubits)
-    # Final RY layer (was missing in the old ansatz)
     for q in range(n_qubits):
         qc.ry(theta[idx], q)
         idx += 1
@@ -82,9 +81,33 @@ def empirical_distribution(bitstrings: np.ndarray, n_qubits: int) -> np.ndarray:
 
 
 def kl_divergence(p: np.ndarray, q: np.ndarray, eps: float = 1e-12) -> float:
+    """Forward KL divergence KL(p||q). Mode-seeking: heavily penalises the model
+    for assigning near-zero probability to states the data visits, producing sharp
+    concentrated distributions — ideal for anomaly detection."""
     q = np.clip(q, eps, 1.0)
     p = np.clip(p, eps, 1.0)
     return float(np.sum(p * np.log(p / q)))
+
+
+def js_divergence(p: np.ndarray, q: np.ndarray, eps: float = 1e-12) -> float:
+    """Jensen-Shannon divergence between p and q.
+
+    Symmetric alternative to KL divergence. Bounded in [0, log(2)] ≈ [0, 0.693].
+
+    Advantages over KL for QCBM training:
+    - Symmetric: penalises the model both for missing normal modes AND for
+      assigning probability mass to states the data never visits.
+    - Bounded: gradient magnitudes stay stable throughout training (KL can
+      blow up when model assigns near-zero prob to data states).
+    - More balanced fit: the model is less likely to collapse to a degenerate
+      distribution that covers only the most common bitstrings.
+    """
+    p = np.clip(p, eps, 1.0); p = p / p.sum()
+    q = np.clip(q, eps, 1.0); q = q / q.sum()
+    m = 0.5 * (p + q)
+    return float(
+        0.5 * np.sum(p * np.log(p / m)) + 0.5 * np.sum(q * np.log(q / m))
+    )
 
 
 def spsa_optimize(
@@ -96,27 +119,10 @@ def spsa_optimize(
     seed: int,
     patience: int = 50,
 ) -> tuple[np.ndarray, list[float]]:
-    """SPSA optimizer with momentum and early stopping.
-
-    Improvements over plain SPSA:
-    - Momentum (beta=0.9): accumulates gradient direction across iterations,
-      smoothing noisy SPSA estimates and speeding up convergence.
-    - Best-theta tracking: returns the parameters at the lowest observed loss,
-      not just the final iterate (which may have drifted due to noise).
-    - Early stopping: halts when loss hasn't improved by >1e-5 for `patience`
-      consecutive iterations, avoiding wasted computation on a plateau.
-    - Progress logging every 50 iterations to monitor convergence.
-
-    Returns
-    -------
-    best_theta : np.ndarray
-        Parameters at the lowest observed training loss.
-    loss_history : list[float]
-        Per-iteration loss estimates for diagnostics.
-    """
+    """SPSA optimizer with momentum and early stopping."""
     rng = np.random.default_rng(seed)
     theta = theta0.copy()
-    m = np.zeros_like(theta)          # momentum accumulator
+    m = np.zeros_like(theta)
     best_loss = np.inf
     best_theta = theta.copy()
     no_improve = 0
@@ -129,8 +135,6 @@ def spsa_optimize(
         loss_plus  = loss_fn(theta + ck * delta)
         loss_minus = loss_fn(theta - ck * delta)
         ghat = (loss_plus - loss_minus) / (2.0 * ck * delta)
-
-        # Momentum: blend current gradient estimate with running average
         m = 0.9 * m + 0.1 * ghat
         theta = theta - ak * m
 
@@ -154,19 +158,51 @@ def spsa_optimize(
     return best_theta, loss_history
 
 
-def train_qcbm(bitstrings: np.ndarray, config: QCBMConfig) -> dict:
+def train_qcbm(
+    bitstrings: np.ndarray,
+    config: QCBMConfig,
+    anomaly_bitstrings: np.ndarray | None = None,
+) -> dict:
+    """Train the QCBM with KL divergence loss and optional contrastive term.
+
+    Parameters
+    ----------
+    bitstrings : np.ndarray
+        Bitstrings of NORMAL training samples only.
+    config : QCBMConfig
+        Training configuration.
+    anomaly_bitstrings : np.ndarray, optional
+        Bitstrings of known anomaly samples from training data.
+        When provided, a contrastive penalty is added to the loss:
+
+            L = KL(normal || model) + λ * max(0, margin - KL(anomaly || model))
+
+        This pushes the model to assign LOW probability to anomaly bitstrings.
+        λ = config.lambda_contrast, margin = config.contrast_margin.
+        Set lambda_contrast=0 to disable.
+    """
     n_qubits = config.n_qubits
     data_dist = empirical_distribution(bitstrings, n_qubits)
-    rng = np.random.default_rng(config.seed)
 
-    # Uniform [0, 2π] initialization breaks the near-zero symmetry that causes
-    # barren plateaus with small-normal initialization.
+    anomaly_dist = None
+    if anomaly_bitstrings is not None and len(anomaly_bitstrings) > 0 and config.lambda_contrast > 0:
+        anomaly_dist = empirical_distribution(anomaly_bitstrings, n_qubits)
+        print(f"  Contrastive loss enabled  λ={config.lambda_contrast}  margin={config.contrast_margin}")
+
+    rng = np.random.default_rng(config.seed)
     n_theta = n_params(n_qubits, config.n_layers)
     theta0 = rng.uniform(0, 2 * np.pi, size=n_theta)
 
     def loss_fn(theta: np.ndarray) -> float:
         model_dist = qcbm_distribution(theta, config)
-        return kl_divergence(data_dist, model_dist)
+        # KL divergence: mode-seeking, creates sharp concentrated distributions
+        # which is exactly what anomaly detection needs (low prob on unseen states)
+        loss = kl_divergence(data_dist, model_dist)
+        # Contrastive term: penalise if model is too close to anomaly distribution
+        if anomaly_dist is not None:
+            anom_kl = kl_divergence(anomaly_dist, model_dist)
+            loss += config.lambda_contrast * max(0.0, config.contrast_margin - anom_kl)
+        return loss
 
     theta, loss_history = spsa_optimize(
         loss_fn,

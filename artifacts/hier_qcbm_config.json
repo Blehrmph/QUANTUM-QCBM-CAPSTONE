@@ -4,5 +4,7 @@
   "max_iter": 800,
   "seed": 42,
   "spsa_a": 0.2,
-  "spsa_c": 0.1
+  "spsa_c": 0.1,
+  "lambda_contrast": 0.0,
+  "contrast_margin": 0.3
 }

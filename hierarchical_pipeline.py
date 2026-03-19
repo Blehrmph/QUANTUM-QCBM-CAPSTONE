@@ -40,6 +40,10 @@ def build_arg_parser():
     parser.add_argument("--qcbm-ensemble", type=int, default=1)
     parser.add_argument("--spsa-a", type=float, default=0.2)
     parser.add_argument("--spsa-c", type=float, default=0.1)
+    parser.add_argument("--lambda-contrast", type=float, default=0.5,
+                        help="Weight of contrastive loss term (0 = disabled).")
+    parser.add_argument("--contrast-margin", type=float, default=0.3,
+                        help="Min JS distance the model must maintain from anomaly distribution.")
     parser.add_argument("--min-subtype-samples", type=int, default=10)
     parser.add_argument("--mi-top-k", type=int, default=8)
     parser.add_argument("--var-threshold", type=float, default=0.0)
