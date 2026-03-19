@@ -25,7 +25,7 @@ def build_arg_parser():
     parser.add_argument("--attack-col", default="attack_cat")
     parser.add_argument("--subtype-col", default="")
     parser.add_argument("--output-dir", default="artifacts")
-    parser.add_argument("--features", default="dur,sbytes,dbytes,tcprtt,Spkts,Dpkts,Sload,Dload")
+    parser.add_argument("--features", default="dur,sbytes,dbytes,Sload,Dload,Spkts,Dpkts,tcprtt")
     parser.add_argument("--log1p", action="store_true", default=True)
     parser.add_argument("--scaler", choices=["standard", "minmax"], default="standard")
     parser.add_argument("--n-bins", type=int, default=2)

@@ -11,10 +11,10 @@ DEFAULT_FEATURES = [
     "dur",
     "sbytes",
     "dbytes",
-    "Spkts",
-    "Dpkts",
     "Sload",
     "Dload",
+    "Spkts",
+    "Dpkts",
     "tcprtt",
 ]
 

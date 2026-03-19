@@ -31,6 +31,36 @@ def find_best_threshold(y_true, scores):
     return float(best_t), float(best_f1)
 
 
+def find_youden_threshold(y_true, scores):
+    """Youden's J = Recall - FAR (maximises DR while minimising false alarms).
+
+    Unlike F1, which weights precision and recall equally, Youden's J directly
+    optimises the security-relevant tradeoff: catch as many attacks as possible
+    while keeping the false alarm rate as low as possible.
+    """
+    thresholds = np.unique(scores)
+    if len(thresholds) > 200:
+        thresholds = np.quantile(scores, np.linspace(0.0, 1.0, 201))
+
+    best_t = thresholds[0]
+    best_j = -1.0
+    y_true = np.asarray(y_true)
+    scores = np.asarray(scores)
+    for t in thresholds:
+        y_pred = (scores >= t).astype(int)
+        tp = np.sum((y_pred == 1) & (y_true == 1))
+        fp = np.sum((y_pred == 1) & (y_true == 0))
+        fn = np.sum((y_pred == 0) & (y_true == 1))
+        tn = np.sum((y_pred == 0) & (y_true == 0))
+        recall = tp / (tp + fn) if (tp + fn) else 0.0
+        far    = fp / (fp + tn) if (fp + tn) else 0.0
+        j = recall - far
+        if j > best_j:
+            best_j = j
+            best_t = t
+    return float(best_t), float(best_j)
+
+
 def zscore(scores, mu, sigma):
     denom = sigma if sigma else 1.0
     return (scores - mu) / denom
@@ -127,28 +157,42 @@ def run_stage1(
         stage1_metrics = evaluate(y_test.to_numpy(), test_scores_z)
 
     tail_t = float(np.quantile(train_scores_z[normal_mask_train], args.tail_percentile))
-    best_t, best_f1 = find_best_threshold(y_val.to_numpy(), val_scores_z)
 
-    # Re-evaluate with the best threshold to get full confusion-matrix metrics
-    stage1_metrics = evaluate(y_test.to_numpy(), test_scores_z, threshold=best_t)
+    # Threshold 1: maximise F1 (balanced precision/recall)
+    f1_t, best_f1   = find_best_threshold(y_val.to_numpy(), val_scores_z)
+    # Threshold 2: maximise Youden's J = Recall - FAR (security-optimised)
+    youden_t, best_j = find_youden_threshold(y_val.to_numpy(), val_scores_z)
 
-    print("Stage 1 metrics:")
-    print(f"  ROC-AUC   : {stage1_metrics['roc_auc']:.4f}")
-    print(f"  PR-AUC    : {stage1_metrics['pr_auc']:.4f}")
-    if "f1" in stage1_metrics:
-        print(f"  F1        : {stage1_metrics['f1']:.4f}")
-        print(f"  Precision : {stage1_metrics['precision']:.4f}")
-        print(f"  Recall/DR : {stage1_metrics['recall_dr']:.4f}")
-        print(f"  FAR       : {stage1_metrics['far']:.4f}")
-        print(f"  MCC       : {stage1_metrics['mcc']:.4f}")
-        print(f"  TP={stage1_metrics['tp']}  FP={stage1_metrics['fp']}  "
-              f"FN={stage1_metrics['fn']}  TN={stage1_metrics['tn']}")
+    metrics_f1     = evaluate(y_test.to_numpy(), test_scores_z, threshold=f1_t)
+    metrics_youden = evaluate(y_test.to_numpy(), test_scores_z, threshold=youden_t)
 
-    print(f"  Best val F1: {best_f1:.4f} at threshold {best_t:.6f}")
-    print(f"  Tail threshold (p={args.tail_percentile:.3f}): {tail_t:.6f}")
+    print("\nStage 1 metrics:")
+    print(f"  {'Metric':<12} {'F1 threshold':>14} {'Youden threshold':>17}")
+    print(f"  {'-'*45}")
+    print(f"  {'ROC-AUC':<12} {metrics_f1['roc_auc']:>14.4f} {metrics_youden['roc_auc']:>17.4f}")
+    print(f"  {'PR-AUC':<12} {metrics_f1['pr_auc']:>14.4f} {metrics_youden['pr_auc']:>17.4f}")
+    if "f1" in metrics_f1:
+        print(f"  {'F1':<12} {metrics_f1['f1']:>14.4f} {metrics_youden['f1']:>17.4f}")
+        print(f"  {'Precision':<12} {metrics_f1['precision']:>14.4f} {metrics_youden['precision']:>17.4f}")
+        print(f"  {'Recall/DR':<12} {metrics_f1['recall_dr']:>14.4f} {metrics_youden['recall_dr']:>17.4f}")
+        print(f"  {'FAR':<12} {metrics_f1['far']:>14.4f} {metrics_youden['far']:>17.4f}")
+        print(f"  {'MCC':<12} {metrics_f1['mcc']:>14.4f} {metrics_youden['mcc']:>17.4f}")
+        print(f"  {'TP':<12} {metrics_f1['tp']:>14d} {metrics_youden['tp']:>17d}")
+        print(f"  {'FP':<12} {metrics_f1['fp']:>14d} {metrics_youden['fp']:>17d}")
+        print(f"  {'FN':<12} {metrics_f1['fn']:>14d} {metrics_youden['fn']:>17d}")
+        print(f"  {'TN':<12} {metrics_f1['tn']:>14d} {metrics_youden['tn']:>17d}")
+    print(f"\n  F1 threshold    : {f1_t:.6f}  (val F1={best_f1:.4f})")
+    print(f"  Youden threshold: {youden_t:.6f}  (val J={best_j:.4f})")
+    print(f"  Tail threshold  : {tail_t:.6f}  (p={args.tail_percentile:.3f})")
 
-    pred_anom_train = train_scores_z >= best_t
-    pred_anom_test = test_scores_z >= best_t
+    # Use Youden threshold for downstream stages — better DR/FAR tradeoff for IDS
+    pred_anom_train = train_scores_z >= youden_t
+    pred_anom_test  = test_scores_z  >= youden_t
+
+    # Save both metric sets; mark which threshold was used for predictions
+    stage1_metrics = metrics_youden
+    stage1_metrics["f1_threshold_metrics"] = metrics_f1
+    stage1_metrics["active_threshold"] = "youden"
 
     return {
         "edges": edges,
@@ -165,7 +209,7 @@ def run_stage1(
         "stage1_metrics": stage1_metrics,
         "pred_anom_train": pred_anom_train,
         "pred_anom_test": pred_anom_test,
-        "best_threshold": best_t,
+        "best_threshold": youden_t,
     }
 
 
