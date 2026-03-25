@@ -142,14 +142,11 @@ def main():
     print("Engineering categorical features...")
     df = add_categorical_features(df)
 
-    subtype_col = args.subtype_col.strip() or detect_subtype_column(df.columns)
-
     print("Selecting features...")
     features = [c.strip() for c in args.features.split(",") if c.strip()]
     X = select_features(df, features)
     y = df[args.label_col]
     attack_cat = df[args.attack_col]
-    attack_sub = df[subtype_col] if subtype_col else None
 
     print("Splitting train/val/test...")
     splits = train_val_test_split(
@@ -167,12 +164,6 @@ def main():
     attack_train = attack_cat.loc[train_idx].reset_index(drop=True)
     attack_val = attack_cat.loc[val_idx].reset_index(drop=True)
     attack_test = attack_cat.loc[test_idx].reset_index(drop=True)
-    if attack_sub is not None:
-        sub_train = attack_sub.loc[train_idx].reset_index(drop=True)
-        sub_val = attack_sub.loc[val_idx].reset_index(drop=True)
-        sub_test = attack_sub.loc[test_idx].reset_index(drop=True)
-    else:
-        sub_train = sub_val = sub_test = None
 
     if args.log1p:
         print("Applying log1p to skewed features...")
@@ -339,7 +330,7 @@ def main():
         print("Stage 1 complete.")
         return
 
-    stage2_model, _ = run_stage2(
+    stage2_model, _, y_train_cat_clean = run_stage2(
         X_train,
         X_test,
         splits.y_train,
@@ -349,26 +340,19 @@ def main():
         stage1_out["pred_anom_test"],
     )
 
-    if subtype_col:
-        if stage2_model is None:
-            print("Skipping Stage 3 because Stage 2 is not trained.")
-        else:
-            train_anom_mask = (splits.y_train.reset_index(drop=True).to_numpy() == 1)
-            X_train_anom = X_train.reset_index(drop=True).iloc[train_anom_mask].reset_index(drop=True)
-            y_train_cat = attack_train.reset_index(drop=True).iloc[train_anom_mask].astype(str).str.strip()
-            keep = (y_train_cat.notna() & (y_train_cat != "")).to_numpy()
-            X_train_anom = X_train_anom.reset_index(drop=True).iloc[keep].reset_index(drop=True)
-            y_train_cat = y_train_cat.reset_index(drop=True).iloc[keep].reset_index(drop=True)
-            sub_train_clean = sub_train.reset_index(drop=True).iloc[train_anom_mask].reset_index(drop=True)
-            sub_train_clean = sub_train_clean.reset_index(drop=True).iloc[keep].reset_index(drop=True)
-            run_stage3(
-                X_train_anom,
-                y_train_cat,
-                sub_train_clean,
-                args.min_subtype_samples,
-            )
+    if stage2_model is None:
+        print("Skipping Stage 3 because Stage 2 is not trained.")
     else:
-        print("No subtype column found; skipping Stage 3.")
+        train_anom_mask = (splits.y_train.reset_index(drop=True).to_numpy() == 1)
+        X_train_anom = X_train.reset_index(drop=True).iloc[train_anom_mask].reset_index(drop=True)
+        keep = (y_train_cat_clean.notna() & (y_train_cat_clean != "") & (y_train_cat_clean != "nan")).to_numpy()
+        X_train_anom = X_train_anom.iloc[keep].reset_index(drop=True)
+        y_train_cat_s3 = y_train_cat_clean.iloc[keep].reset_index(drop=True)
+        run_stage3(
+            X_train_anom,
+            y_train_cat_s3,
+            args.min_subtype_samples,
+        )
 
     print("Saving artifacts...")
     from pathlib import Path

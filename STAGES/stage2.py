@@ -4,18 +4,37 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import accuracy_score, f1_score, classification_report
 from imblearn.over_sampling import SMOTE
 
+# Maps specific UNSW-NB15 attack categories to broad families.
+# Stage 2 classifies into these 4 families; Stage 3 then resolves
+# the specific attack type within each family.
+ATTACK_FAMILY_MAP = {
+    "Generic":        "Flood",
+    "DoS":            "Flood",
+    "Fuzzers":        "Probe",
+    "Analysis":       "Probe",
+    "Reconnaissance": "Probe",
+    "Exploits":       "Exploit",
+    "Shellcode":      "Exploit",
+    "Backdoor":       "Persistence",
+    "Backdoors":      "Persistence",
+    "Worms":          "Persistence",
+}
+
+
+def map_to_family(labels):
+    return np.array([ATTACK_FAMILY_MAP.get(l, "Unknown") for l in labels])
+
 
 def train_xgboost_classifier(X_train, y_train):
-    """XGBoost multiclass classifier with SMOTE oversampling.
+    """XGBoost broad-family classifier with SMOTE oversampling.
 
-    Replicates the approach from Aldweesh et al. (2023) which achieves
-    83.2% accuracy and macro F1 of 68.8% on UNSW-NB15 attack categories.
-    SMOTE addresses the severe class imbalance across the 9 attack families.
+    Stage 2 classifies flagged anomalies into 4 broad attack families:
+    Flood, Probe, Exploit, Persistence. Replicates the XGBoost approach
+    from Aldweesh et al. (2023) which achieves 83.2% accuracy on UNSW-NB15.
     """
     le = LabelEncoder()
     y_enc = le.fit_transform(y_train)
 
-    # Apply SMOTE only where minority classes have enough samples
     min_samples = int(np.bincount(y_enc).min())
     k_neighbors = min(5, min_samples - 1) if min_samples > 1 else 1
 
@@ -45,8 +64,9 @@ def train_xgboost_classifier(X_train, y_train):
 
 
 def run_stage2(X_train, X_test, y_train, y_test, attack_train, attack_test, pred_anom_test):
-    print("Stage 2: Training XGBoost attack category classifier (Aldweesh et al., 2023)...")
+    print("Stage 2: Training XGBoost broad-family classifier (Flood / Probe / Exploit / Persistence)...")
 
+    # Build training set: anomalies only, mapped to broad families
     train_anom_mask = (y_train.reset_index(drop=True).to_numpy() == 1)
     X_train_anom = X_train.reset_index(drop=True).iloc[train_anom_mask].reset_index(drop=True)
     y_train_cat = attack_train.reset_index(drop=True).iloc[train_anom_mask].astype(str).str.strip()
@@ -56,10 +76,12 @@ def run_stage2(X_train, X_test, y_train, y_test, attack_train, attack_test, pred
 
     if len(y_train_cat.unique()) < 2:
         print("Not enough attack categories to train Stage 2.")
-        return None, None
+        return None, None, None
 
-    model, le = train_xgboost_classifier(X_train_anom.values, y_train_cat.values)
+    y_train_family = map_to_family(y_train_cat.values)
+    model, le = train_xgboost_classifier(X_train_anom.values, y_train_family)
 
+    # Evaluate on true test anomalies
     test_anom_mask = (y_test.reset_index(drop=True).to_numpy() == 1)
     X_test_anom = X_test.reset_index(drop=True).iloc[test_anom_mask].reset_index(drop=True)
     y_test_cat = attack_test.reset_index(drop=True).iloc[test_anom_mask].astype(str).str.strip()
@@ -68,31 +90,30 @@ def run_stage2(X_train, X_test, y_train, y_test, attack_train, attack_test, pred
     y_test_cat = y_test_cat.iloc[keep_test].reset_index(drop=True)
 
     if len(y_test_cat) > 0:
-        y_enc_test = le.transform(
-            np.where(np.isin(y_test_cat.values, le.classes_), y_test_cat.values, le.classes_[0])
-        )
+        y_test_family = map_to_family(y_test_cat.values)
+        known_mask = np.isin(y_test_family, le.classes_)
+        y_test_family_safe = np.where(known_mask, y_test_family, le.classes_[0])
         y_pred_enc = model.predict(X_test_anom.values)
-        y_pred_cat = le.inverse_transform(y_pred_enc)
-        y_true_cat = le.inverse_transform(y_enc_test)
+        y_pred_family = le.inverse_transform(y_pred_enc)
+        y_true_family = le.inverse_transform(le.transform(y_test_family_safe))
 
-        print("Stage 2 metrics (true anomalies only):")
-        print(f"  Accuracy : {accuracy_score(y_true_cat, y_pred_cat):.4f}")
-        print(f"  Macro-F1 : {f1_score(y_true_cat, y_pred_cat, average='macro', zero_division=0):.4f}")
-        print("\nPer-class report:")
-        print(classification_report(y_true_cat, y_pred_cat, zero_division=0))
-    else:
-        print("No labeled anomalies available in test set for Stage 2 evaluation.")
-        y_pred_cat = None
+        print("Stage 2 metrics (broad families, true anomalies only):")
+        print(f"  Accuracy : {accuracy_score(y_true_family, y_pred_family):.4f}")
+        print(f"  Macro-F1 : {f1_score(y_true_family, y_pred_family, average='macro', zero_division=0):.4f}")
+        print("\nPer-family report:")
+        print(classification_report(y_true_family, y_pred_family, zero_division=0))
 
+    # Predict on all Stage 1 flagged anomalies
     X_test_pred_anom = X_test.loc[pred_anom_test].reset_index(drop=True)
     if len(X_test_pred_anom) > 0:
         y_pred_enc_all = model.predict(X_test_pred_anom.values)
-        y_pred_cat_all = le.inverse_transform(y_pred_enc_all)
-        unique, counts = np.unique(y_pred_cat_all, return_counts=True)
-        print("Stage 2 predictions on Stage 1 anomalies:")
+        y_pred_family_all = le.inverse_transform(y_pred_enc_all)
+        unique, counts = np.unique(y_pred_family_all, return_counts=True)
+        print("Stage 2 predictions on Stage 1 anomalies (broad families):")
         for k, v in zip(unique.tolist(), counts.tolist()):
             print(f"  {k}: {int(v)}")
     else:
         print("Stage 1 found no anomalies to pass to Stage 2.")
 
-    return model, le
+    # Return model, encoder, and the specific attack_cat labels for Stage 3
+    return model, le, y_train_cat
