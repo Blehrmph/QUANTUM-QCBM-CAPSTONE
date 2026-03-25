@@ -339,7 +339,7 @@ def main():
         print("Stage 1 complete.")
         return
 
-    stage2_model = run_stage2(
+    stage2_model, _ = run_stage2(
         X_train,
         X_test,
         splits.y_train,
