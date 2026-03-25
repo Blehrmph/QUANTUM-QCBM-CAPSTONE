@@ -8,17 +8,17 @@ import pandas as pd
 
 
 DEFAULT_FEATURES = [
+    "is_not_tcp",    # 1 if proto != tcp  (udp/rare protos have higher attack rate)
+    "is_int_state",  # 1 if state == INT  (incomplete conn — 55% attack rate for UDP)
+    "is_con_state",  # 1 if state == CON  (established conn — 0.1% attack rate)
     "dur",
     "sbytes",
     "dbytes",
-    "Sload",
-    "Dload",
     "Spkts",
     "Dpkts",
-    "tcprtt",
 ]
 
-DEFAULT_LOG1P_COLS = ["sbytes", "dbytes", "Sload", "Dload"]
+DEFAULT_LOG1P_COLS = ["sbytes", "dbytes"]
 
 
 @dataclass
@@ -76,6 +76,23 @@ class Scaler:
             min_=data.get("min_"),
             max_=data.get("max_"),
         )
+
+
+def add_categorical_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Derive binary indicator columns from proto, state, and service.
+
+    These features are far more discriminative than raw continuous traffic stats:
+    - is_not_tcp  : non-TCP protocols (udp/rare) have higher attack rates
+    - is_int_state: state=INT (incomplete connection) = 55% attack rate for UDP
+    - is_con_state: state=CON (established) = 0.1% attack rate — strongly normal
+    """
+    out = df.copy()
+    if "proto" in df.columns:
+        out["is_not_tcp"] = (df["proto"] != "tcp").astype(float)
+    if "state" in df.columns:
+        out["is_int_state"] = (df["state"] == "INT").astype(float)
+        out["is_con_state"] = (df["state"] == "CON").astype(float)
+    return out
 
 
 def apply_log1p(df: pd.DataFrame, columns: Iterable[str]) -> pd.DataFrame:
