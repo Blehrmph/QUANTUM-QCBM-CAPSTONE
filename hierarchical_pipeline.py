@@ -348,10 +348,21 @@ def main():
         keep = (y_train_cat_clean.notna() & (y_train_cat_clean != "") & (y_train_cat_clean != "nan")).to_numpy()
         X_train_anom = X_train_anom.iloc[keep].reset_index(drop=True)
         y_train_cat_s3 = y_train_cat_clean.iloc[keep].reset_index(drop=True)
+
+        # Build test anomaly set for Stage 3 evaluation
+        test_anom_mask = (splits.y_test.reset_index(drop=True).to_numpy() == 1)
+        X_test_anom = X_test.reset_index(drop=True).iloc[test_anom_mask].reset_index(drop=True)
+        y_test_cat_s3 = attack_test.reset_index(drop=True).iloc[test_anom_mask].astype(str).str.strip()
+        keep_test = (y_test_cat_s3.notna() & (y_test_cat_s3 != "") & (y_test_cat_s3 != "nan")).to_numpy()
+        X_test_anom = X_test_anom.iloc[keep_test].reset_index(drop=True)
+        y_test_cat_s3 = y_test_cat_s3.iloc[keep_test].reset_index(drop=True)
+
         run_stage3(
             X_train_anom,
             y_train_cat_s3,
             args.min_subtype_samples,
+            X_test_anom=X_test_anom,
+            y_test_cat=y_test_cat_s3,
         )
 
     print("Saving artifacts...")
