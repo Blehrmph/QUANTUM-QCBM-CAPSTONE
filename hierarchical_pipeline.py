@@ -41,6 +41,12 @@ def build_arg_parser():
     parser.add_argument("--qcbm-ensemble", type=int, default=1)
     parser.add_argument("--spsa-a", type=float, default=0.2)
     parser.add_argument("--spsa-c", type=float, default=0.1)
+    parser.add_argument("--optimizer", choices=["spsa", "adam"], default="spsa",
+                        help="Optimizer for QCBM training.")
+    parser.add_argument("--adam-lr", type=float, default=0.01,
+                        help="ADAM learning rate (used when --optimizer adam).")
+    parser.add_argument("--adam-beta1", type=float, default=0.9)
+    parser.add_argument("--adam-beta2", type=float, default=0.999)
     parser.add_argument("--lambda-contrast", type=float, default=0.5,
                         help="Weight of contrastive loss term (0 = disabled).")
     parser.add_argument("--contrast-margin", type=float, default=0.3,

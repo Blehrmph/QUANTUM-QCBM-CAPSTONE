@@ -20,6 +20,10 @@ class QCBMConfig:
     laplace_alpha: float = 1.0     # Laplace smoothing on empirical distribution
     warmstart_layers: bool = False  # pre-train with n_layers-1, then expand
     use_rzz: bool = False           # parametrised RZZ entanglement instead of fixed CNOT
+    optimizer: str = "spsa"         # "spsa" or "adam"
+    adam_lr: float = 0.01           # ADAM learning rate
+    adam_beta1: float = 0.9         # ADAM first moment decay
+    adam_beta2: float = 0.999       # ADAM second moment decay
 
 
 def _import_qiskit():
@@ -185,6 +189,81 @@ def spsa_optimize(
     return best_theta, loss_history
 
 
+def compute_gradient_param_shift(
+    loss_fn,
+    theta: np.ndarray,
+    shift: float = np.pi / 2,
+) -> np.ndarray:
+    """Exact gradient via the parameter-shift rule.
+
+    For each parameter theta_i:
+        dL/dtheta_i = [ L(theta + shift*e_i) - L(theta - shift*e_i) ] / 2
+
+    Requires 2 * len(theta) circuit evaluations per call — exact but expensive.
+    For our 80-param circuit: 160 evaluations per gradient step vs SPSA's 2.
+    """
+    grad = np.zeros_like(theta)
+    for i in range(len(theta)):
+        t_plus  = theta.copy(); t_plus[i]  += shift
+        t_minus = theta.copy(); t_minus[i] -= shift
+        grad[i] = (loss_fn(t_plus) - loss_fn(t_minus)) / 2.0
+    return grad
+
+
+def adam_optimize(
+    loss_fn,
+    theta0: np.ndarray,
+    max_iter: int,
+    lr: float = 0.01,
+    beta1: float = 0.9,
+    beta2: float = 0.999,
+    eps: float = 1e-8,
+    patience: int = 15,
+) -> tuple[np.ndarray, list[float]]:
+    """ADAM optimizer with exact parameter-shift gradients and early stopping.
+
+    Each iteration computes 2*n_params circuit evaluations (exact gradient)
+    plus 1 evaluation for the current loss — 161 evaluations for 80 params.
+    Exact gradients mean significantly fewer iterations are needed vs SPSA.
+    """
+    theta = theta0.copy()
+    m = np.zeros_like(theta)  # first moment
+    v = np.zeros_like(theta)  # second moment
+    best_loss = np.inf
+    best_theta = theta.copy()
+    no_improve = 0
+    loss_history: list[float] = []
+
+    for t in range(1, max_iter + 1):
+        grad = compute_gradient_param_shift(loss_fn, theta)
+
+        # Bias-corrected ADAM update
+        m = beta1 * m + (1.0 - beta1) * grad
+        v = beta2 * v + (1.0 - beta2) * grad ** 2
+        m_hat = m / (1.0 - beta1 ** t)
+        v_hat = v / (1.0 - beta2 ** t)
+        theta = theta - lr * m_hat / (np.sqrt(v_hat) + eps)
+
+        current_loss = loss_fn(theta)
+        loss_history.append(current_loss)
+
+        if current_loss < best_loss - 1e-5:
+            best_loss = current_loss
+            best_theta = theta.copy()
+            no_improve = 0
+        else:
+            no_improve += 1
+
+        if t % 10 == 0:
+            print(f"  ADAM iter {t}/{max_iter}: loss={current_loss:.6f}  best={best_loss:.6f}")
+
+        if no_improve >= patience:
+            print(f"  Early stop at iter {t}  best_loss={best_loss:.6f}")
+            break
+
+    return best_theta, loss_history
+
+
 def train_qcbm(
     bitstrings: np.ndarray,
     config: QCBMConfig,
@@ -241,6 +320,10 @@ def train_qcbm(
             laplace_alpha=0.0,
             warmstart_layers=False,
             use_rzz=config.use_rzz,
+            optimizer=config.optimizer,
+            adam_lr=config.adam_lr,
+            adam_beta1=config.adam_beta1,
+            adam_beta2=config.adam_beta2,
         )
         warm_n_theta = n_params(n_qubits, warm_config.n_layers, use_rzz=config.use_rzz)
         warm_theta0 = rng.uniform(0, 2 * np.pi, size=warm_n_theta)
@@ -249,14 +332,24 @@ def train_qcbm(
             model_dist = qcbm_distribution(theta, warm_config)
             return kl_divergence(data_dist, model_dist)
 
-        warm_theta, _ = spsa_optimize(
-            warm_loss,
-            theta0=warm_theta0,
-            max_iter=warm_config.max_iter,
-            a=warm_config.spsa_a,
-            c=warm_config.spsa_c,
-            seed=warm_config.seed,
-        )
+        if config.optimizer == "adam":
+            warm_theta, _ = adam_optimize(
+                warm_loss,
+                theta0=warm_theta0,
+                max_iter=warm_config.max_iter,
+                lr=config.adam_lr,
+                beta1=config.adam_beta1,
+                beta2=config.adam_beta2,
+            )
+        else:
+            warm_theta, _ = spsa_optimize(
+                warm_loss,
+                theta0=warm_theta0,
+                max_iter=warm_config.max_iter,
+                a=warm_config.spsa_a,
+                c=warm_config.spsa_c,
+                seed=warm_config.seed,
+            )
         # Expand: copy warm theta into first (n_layers-1) layers, randomly init new layer
         theta0 = np.zeros(n_theta)
         warm_layer_params = (config.n_layers - 1) * params_per_layer
@@ -280,14 +373,26 @@ def train_qcbm(
             loss += config.lambda_contrast * max(0.0, config.contrast_margin - anom_kl)
         return loss
 
-    theta, loss_history = spsa_optimize(
-        loss_fn,
-        theta0=theta0,
-        max_iter=config.max_iter,
-        a=config.spsa_a,
-        c=config.spsa_c,
-        seed=config.seed,
-    )
+    if config.optimizer == "adam":
+        print(f"  Optimizer: ADAM  lr={config.adam_lr}  beta1={config.adam_beta1}  beta2={config.adam_beta2}")
+        print(f"  Gradient: parameter-shift rule  ({2 * n_theta} evals/step)")
+        theta, loss_history = adam_optimize(
+            loss_fn,
+            theta0=theta0,
+            max_iter=config.max_iter,
+            lr=config.adam_lr,
+            beta1=config.adam_beta1,
+            beta2=config.adam_beta2,
+        )
+    else:
+        theta, loss_history = spsa_optimize(
+            loss_fn,
+            theta0=theta0,
+            max_iter=config.max_iter,
+            a=config.spsa_a,
+            c=config.spsa_c,
+            seed=config.seed,
+        )
 
     model_dist = qcbm_distribution(theta, config)
     final_loss = kl_divergence(data_dist, model_dist)

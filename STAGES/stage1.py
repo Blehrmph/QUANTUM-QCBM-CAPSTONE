@@ -137,6 +137,10 @@ def run_stage1(
             contrast_margin=args.contrast_margin,
             laplace_alpha=args.laplace_alpha,
             warmstart_layers=getattr(args, "warmstart_layers", False),
+            optimizer=getattr(args, "optimizer", "spsa"),
+            adam_lr=getattr(args, "adam_lr", 0.01),
+            adam_beta1=getattr(args, "adam_beta1", 0.9),
+            adam_beta2=getattr(args, "adam_beta2", 0.999),
         )
         train_out = train_qcbm(bit_train_normal, config, anomaly_bitstrings=bit_train_anomaly)
         thetas.append(train_out["theta"])

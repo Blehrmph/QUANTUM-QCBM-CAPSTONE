@@ -9,5 +9,9 @@
   "contrast_margin": 0.3,
   "laplace_alpha": 1.0,
   "warmstart_layers": false,
-  "use_rzz": false
+  "use_rzz": false,
+  "optimizer": "spsa",
+  "adam_lr": 0.01,
+  "adam_beta1": 0.9,
+  "adam_beta2": 0.999
 }
