@@ -18,6 +18,7 @@ class QCBMConfig:
     lambda_contrast: float = 0.5   # weight of contrastive term
     contrast_margin: float = 0.3   # min KL distance from anomaly distribution
     laplace_alpha: float = 1.0     # Laplace smoothing on empirical distribution
+    warmstart_layers: bool = False  # pre-train with n_layers-1, then expand
 
 
 def _import_qiskit():
@@ -204,7 +205,7 @@ def train_qcbm(
     n_qubits = config.n_qubits
     data_dist = empirical_distribution(bitstrings, n_qubits, alpha=config.laplace_alpha)
     if config.laplace_alpha > 0:
-        print(f"  Laplace smoothing α={config.laplace_alpha}")
+        print(f"  Laplace smoothing alpha={config.laplace_alpha}")
 
     # Always build anomaly_dist for diagnostics; only use in loss if λ > 0
     anomaly_dist = None
@@ -217,7 +218,50 @@ def train_qcbm(
 
     rng = np.random.default_rng(config.seed)
     n_theta = n_params(n_qubits, config.n_layers)
-    theta0 = rng.uniform(0, 2 * np.pi, size=n_theta)
+
+    # Warm-start: pre-train a shallower circuit, then expand to full depth
+    if config.warmstart_layers and config.n_layers > 1:
+        print(f"  Warm-start: pre-training {config.n_layers - 1} layers -> {config.n_layers} layers")
+        warm_config = QCBMConfig(
+            n_qubits=n_qubits,
+            n_layers=config.n_layers - 1,
+            max_iter=config.max_iter // 3,
+            seed=config.seed,
+            spsa_a=config.spsa_a,
+            spsa_c=config.spsa_c,
+            lambda_contrast=0.0,
+            contrast_margin=config.contrast_margin,
+            laplace_alpha=0.0,
+            warmstart_layers=False,
+        )
+        warm_n_theta = n_params(n_qubits, warm_config.n_layers)
+        warm_theta0 = rng.uniform(0, 2 * np.pi, size=warm_n_theta)
+
+        def warm_loss(theta: np.ndarray) -> float:
+            model_dist = qcbm_distribution(theta, warm_config)
+            return kl_divergence(data_dist, model_dist)
+
+        warm_theta, _ = spsa_optimize(
+            warm_loss,
+            theta0=warm_theta0,
+            max_iter=warm_config.max_iter,
+            a=warm_config.spsa_a,
+            c=warm_config.spsa_c,
+            seed=warm_config.seed,
+        )
+        # Expand: copy warm theta into first (n_layers-1) layers, randomly init new layer + final RY
+        theta0 = np.zeros(n_theta)
+        # warm_theta layout: n_layers-1 layers of 3*n_qubits each, then n_qubits final RY
+        warm_layer_params = (config.n_layers - 1) * n_qubits * 3
+        theta0[:warm_layer_params] = warm_theta[:warm_layer_params]
+        # new layer params: random init
+        theta0[warm_layer_params:warm_layer_params + n_qubits * 3] = rng.uniform(
+            0, 2 * np.pi, size=n_qubits * 3
+        )
+        # final RY from warm theta
+        theta0[warm_layer_params + n_qubits * 3:] = warm_theta[warm_layer_params:]
+    else:
+        theta0 = rng.uniform(0, 2 * np.pi, size=n_theta)
 
     def loss_fn(theta: np.ndarray) -> float:
         model_dist = qcbm_distribution(theta, config)

@@ -19,6 +19,25 @@ def score_samples(
     return -np.log(probs)
 
 
+def platt_calibrate(scores_val: np.ndarray, y_val: np.ndarray):
+    """Fit a Platt scaler (logistic regression) on validation scores.
+
+    Maps raw -log(p) anomaly scores to calibrated probabilities.
+    Returns a callable that transforms scores -> calibrated scores.
+    Improves precision without touching the quantum model.
+    """
+    try:
+        from sklearn.linear_model import LogisticRegression
+        X = scores_val.reshape(-1, 1)
+        clf = LogisticRegression(C=1.0, solver="lbfgs", max_iter=1000)
+        clf.fit(X, y_val)
+        def calibrator(scores: np.ndarray) -> np.ndarray:
+            return clf.predict_proba(scores.reshape(-1, 1))[:, 1]
+        return calibrator
+    except Exception:
+        return None
+
+
 def _roc_auc_score(y_true: np.ndarray, scores: np.ndarray) -> float:
     order = np.argsort(scores)[::-1]
     y = y_true[order]

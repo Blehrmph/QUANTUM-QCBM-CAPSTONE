@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from src.discretize import encode_bits, fit_bins, transform_bins
 from src.qcbm_train import QCBMConfig, train_qcbm
-from src.score_eval import evaluate, score_samples
+from src.score_eval import evaluate, platt_calibrate, score_samples
 from src.training_setup import filter_normal
 
 
@@ -136,6 +136,7 @@ def run_stage1(
             lambda_contrast=args.lambda_contrast,
             contrast_margin=args.contrast_margin,
             laplace_alpha=args.laplace_alpha,
+            warmstart_layers=getattr(args, "warmstart_layers", False),
         )
         train_out = train_qcbm(bit_train_normal, config, anomaly_bitstrings=bit_train_anomaly)
         thetas.append(train_out["theta"])
@@ -163,6 +164,16 @@ def run_stage1(
         val_scores_z = -val_scores_z
         train_scores_z = -train_scores_z
         stage1_metrics = evaluate(y_test.to_numpy(), test_scores_z)
+
+    # Platt calibration: fit logistic regression on val scores -> calibrated probabilities
+    if getattr(args, "platt_calibration", False):
+        calibrator = platt_calibrate(val_scores_z, y_val.to_numpy())
+        if calibrator is not None:
+            print("  Platt calibration applied.")
+            val_scores_z   = calibrator(val_scores_z)
+            test_scores_z  = calibrator(test_scores_z)
+            train_scores_z = calibrator(train_scores_z)
+            stage1_metrics = evaluate(y_test.to_numpy(), test_scores_z)
 
     tail_t = float(np.quantile(train_scores_z[normal_mask_train], args.tail_percentile))
 

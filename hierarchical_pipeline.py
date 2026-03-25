@@ -46,6 +46,14 @@ def build_arg_parser():
                         help="Min KL distance the model must maintain from anomaly distribution.")
     parser.add_argument("--laplace-alpha", type=float, default=1.0,
                         help="Laplace smoothing on empirical distribution (0 = disabled).")
+    parser.add_argument("--platt-calibration", action="store_true", default=False,
+                        help="Apply Platt scaling to calibrate anomaly scores using validation labels.")
+    parser.add_argument("--warmstart-layers", action="store_true", default=False,
+                        help="Pre-train with n_layers-1 then expand to full depth (avoids barren plateaus).")
+    parser.add_argument("--spsa-a-values", default="",
+                        help="Comma-separated spsa_a values to sweep (e.g. '0.3,0.628,1.0').")
+    parser.add_argument("--spsa-c-values", default="",
+                        help="Comma-separated spsa_c values to sweep (e.g. '0.05,0.1,0.2').")
     parser.add_argument("--min-subtype-samples", type=int, default=10)
     parser.add_argument("--mi-top-k", type=int, default=8)
     parser.add_argument("--var-threshold", type=float, default=0.0)
@@ -265,6 +273,39 @@ def main():
 
         print("Sweep complete.")
         return
+
+    # SPSA hyperparameter sweep
+    if args.spsa_a_values or args.spsa_c_values:
+        a_list = [float(v) for v in args.spsa_a_values.split(",") if v.strip()] or [args.spsa_a]
+        c_list = [float(v) for v in args.spsa_c_values.split(",") if v.strip()] or [args.spsa_c]
+        spsa_results = []
+        print(f"SPSA sweep: a={a_list}  c={c_list}")
+        base_a, base_c = args.spsa_a, args.spsa_c
+        for a_val in a_list:
+            for c_val in c_list:
+                args.spsa_a = a_val
+                args.spsa_c = c_val
+                print(f"  spsa_a={a_val}  spsa_c={c_val}")
+                out = run_stage1(X_train, X_val, X_test,
+                                 splits.y_train, splits.y_val, splits.y_test,
+                                 features, args)
+                m = out["stage1_metrics"]
+                spsa_results.append({
+                    "spsa_a": a_val, "spsa_c": c_val,
+                    "roc_auc": m["roc_auc"], "pr_auc": m["pr_auc"],
+                    "f1": m.get("f1"), "recall_dr": m.get("recall_dr"), "far": m.get("far"),
+                })
+        args.spsa_a, args.spsa_c = base_a, base_c
+        best = sorted(spsa_results, key=lambda r: (r["roc_auc"], r["pr_auc"]), reverse=True)[0]
+        print(f"\nBest SPSA: a={best['spsa_a']}  c={best['spsa_c']}  "
+              f"ROC-AUC={best['roc_auc']:.4f}  PR-AUC={best['pr_auc']:.4f}")
+        from pathlib import Path
+        out_dir = Path(args.output_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "hier_spsa_sweep.json").write_text(json.dumps(spsa_results, indent=2))
+        if args.stage1_only:
+            print("SPSA sweep complete.")
+            return
 
     stage1_out = run_stage1(
         X_train,
