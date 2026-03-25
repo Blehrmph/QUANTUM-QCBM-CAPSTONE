@@ -1,12 +1,12 @@
 {
   "features": [
     "sbytes",
-    "Sload",
     "dbytes",
-    "Dload",
     "Dpkts",
-    "tcprtt",
+    "is_int_state",
+    "is_not_tcp",
     "Spkts",
+    "is_con_state",
     "dur"
   ]
 }

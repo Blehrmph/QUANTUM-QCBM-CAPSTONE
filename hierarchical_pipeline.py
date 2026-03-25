@@ -20,13 +20,13 @@ from STAGES.stage3 import run_stage3
 
 def build_arg_parser():
     parser = argparse.ArgumentParser(description="Hierarchical IDS pipeline (QCBM + classical).")
-    parser.add_argument("--input", default="datasets/UNSW-NB15_cleaned.csv")
+    parser.add_argument("--input", default="datasets/UNSW-NB15_core_features.csv")
     parser.add_argument("--label-input", default="datasets/UNSW-NB15_cleaned.csv")
     parser.add_argument("--label-col", default="label")
     parser.add_argument("--attack-col", default="attack_cat")
     parser.add_argument("--subtype-col", default="")
     parser.add_argument("--output-dir", default="artifacts")
-    parser.add_argument("--features", default="is_not_tcp,is_int_state,is_con_state,dur,sbytes,dbytes,Spkts,Dpkts")
+    parser.add_argument("--features", default="dur,sbytes,dbytes,Sload,Dload,Spkts,Dpkts,tcprtt")
     parser.add_argument("--log1p", action="store_true", default=True)
     parser.add_argument("--scaler", choices=["standard", "minmax"], default="standard")
     parser.add_argument("--n-bins", type=int, default=2)

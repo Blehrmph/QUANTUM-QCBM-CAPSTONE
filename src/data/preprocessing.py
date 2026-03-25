@@ -8,17 +8,17 @@ import pandas as pd
 
 
 DEFAULT_FEATURES = [
-    "is_not_tcp",    # 1 if proto != tcp  (udp/rare protos have higher attack rate)
-    "is_int_state",  # 1 if state == INT  (incomplete conn — 55% attack rate for UDP)
-    "is_con_state",  # 1 if state == CON  (established conn — 0.1% attack rate)
     "dur",
     "sbytes",
     "dbytes",
+    "Sload",
+    "Dload",
     "Spkts",
     "Dpkts",
+    "tcprtt",
 ]
 
-DEFAULT_LOG1P_COLS = ["sbytes", "dbytes"]
+DEFAULT_LOG1P_COLS = ["sbytes", "dbytes", "Sload", "Dload"]
 
 
 @dataclass
