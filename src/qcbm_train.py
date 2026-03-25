@@ -19,6 +19,7 @@ class QCBMConfig:
     contrast_margin: float = 0.3   # min KL distance from anomaly distribution
     laplace_alpha: float = 1.0     # Laplace smoothing on empirical distribution
     warmstart_layers: bool = False  # pre-train with n_layers-1, then expand
+    use_rzz: bool = False           # parametrised RZZ entanglement instead of fixed CNOT
 
 
 def _import_qiskit():
@@ -32,23 +33,25 @@ def _import_qiskit():
     return QuantumCircuit, Statevector
 
 
-def n_params(n_qubits: int, n_layers: int) -> int:
+def n_params(n_qubits: int, n_layers: int, use_rzz: bool = False) -> int:
     """Total number of trainable parameters for the ansatz.
 
-    Each layer contributes 3 params per qubit (RZ-RY-RZ).
+    Each layer contributes 3 params per qubit (RZ-RY-RZ) plus, when use_rzz=True,
+    1 RZZ param per qubit pair (circular entanglement).
     A final RY layer adds n_qubits more params.
     """
-    return n_qubits * n_layers * 3 + n_qubits
+    per_layer = n_qubits * 3 + (n_qubits if use_rzz else 0)
+    return per_layer * n_layers + n_qubits
 
 
-def build_ansatz(n_qubits: int, n_layers: int, theta: np.ndarray):
-    """Hardware-efficient ansatz: RZ-RY-RZ rotations + circular CNOT entanglement.
+def build_ansatz(n_qubits: int, n_layers: int, theta: np.ndarray, use_rzz: bool = False):
+    """Hardware-efficient ansatz: RZ-RY-RZ rotations + circular entanglement.
 
-    Improvements over the previous RY-only linear-CNOT circuit:
-    - RZ-RY-RZ per qubit covers the full Bloch sphere (vs. single-axis RY).
-    - Circular CNOT (q_last -> q_0 wrap-around) adds long-range correlations.
-    - Final RY layer after the last entanglement block captures post-entanglement
-      rotations that the old circuit was missing.
+    Entanglement options:
+    - use_rzz=False (default): fixed CNOT circular pattern (no extra params).
+    - use_rzz=True: parametrised RZZ(theta) circular pattern — the optimizer
+      learns the strength/direction of each qubit-pair correlation rather than
+      using an all-or-nothing fixed gate.
     """
     QuantumCircuit, _ = _import_qiskit()
     qc = QuantumCircuit(n_qubits)
@@ -59,7 +62,10 @@ def build_ansatz(n_qubits: int, n_layers: int, theta: np.ndarray):
             qc.ry(theta[idx], q); idx += 1
             qc.rz(theta[idx], q); idx += 1
         for q in range(n_qubits):
-            qc.cx(q, (q + 1) % n_qubits)
+            if use_rzz:
+                qc.rzz(theta[idx], q, (q + 1) % n_qubits); idx += 1
+            else:
+                qc.cx(q, (q + 1) % n_qubits)
     for q in range(n_qubits):
         qc.ry(theta[idx], q)
         idx += 1
@@ -68,7 +74,7 @@ def build_ansatz(n_qubits: int, n_layers: int, theta: np.ndarray):
 
 def qcbm_distribution(theta: np.ndarray, config: QCBMConfig) -> np.ndarray:
     _, Statevector = _import_qiskit()
-    qc = build_ansatz(config.n_qubits, config.n_layers, theta)
+    qc = build_ansatz(config.n_qubits, config.n_layers, theta, use_rzz=config.use_rzz)
     sv = Statevector.from_instruction(qc)
     probs = np.abs(sv.data) ** 2
     return probs
@@ -217,9 +223,10 @@ def train_qcbm(
             print(f"  Contrastive loss enabled  lambda={config.lambda_contrast}  margin={config.contrast_margin}")
 
     rng = np.random.default_rng(config.seed)
-    n_theta = n_params(n_qubits, config.n_layers)
+    n_theta = n_params(n_qubits, config.n_layers, use_rzz=config.use_rzz)
 
     # Warm-start: pre-train a shallower circuit, then expand to full depth
+    params_per_layer = n_qubits * 3 + (n_qubits if config.use_rzz else 0)
     if config.warmstart_layers and config.n_layers > 1:
         print(f"  Warm-start: pre-training {config.n_layers - 1} layers -> {config.n_layers} layers")
         warm_config = QCBMConfig(
@@ -233,8 +240,9 @@ def train_qcbm(
             contrast_margin=config.contrast_margin,
             laplace_alpha=0.0,
             warmstart_layers=False,
+            use_rzz=config.use_rzz,
         )
-        warm_n_theta = n_params(n_qubits, warm_config.n_layers)
+        warm_n_theta = n_params(n_qubits, warm_config.n_layers, use_rzz=config.use_rzz)
         warm_theta0 = rng.uniform(0, 2 * np.pi, size=warm_n_theta)
 
         def warm_loss(theta: np.ndarray) -> float:
@@ -249,17 +257,15 @@ def train_qcbm(
             c=warm_config.spsa_c,
             seed=warm_config.seed,
         )
-        # Expand: copy warm theta into first (n_layers-1) layers, randomly init new layer + final RY
+        # Expand: copy warm theta into first (n_layers-1) layers, randomly init new layer
         theta0 = np.zeros(n_theta)
-        # warm_theta layout: n_layers-1 layers of 3*n_qubits each, then n_qubits final RY
-        warm_layer_params = (config.n_layers - 1) * n_qubits * 3
+        warm_layer_params = (config.n_layers - 1) * params_per_layer
         theta0[:warm_layer_params] = warm_theta[:warm_layer_params]
-        # new layer params: random init
-        theta0[warm_layer_params:warm_layer_params + n_qubits * 3] = rng.uniform(
-            0, 2 * np.pi, size=n_qubits * 3
+        theta0[warm_layer_params:warm_layer_params + params_per_layer] = rng.uniform(
+            0, 2 * np.pi, size=params_per_layer
         )
         # final RY from warm theta
-        theta0[warm_layer_params + n_qubits * 3:] = warm_theta[warm_layer_params:]
+        theta0[warm_layer_params + params_per_layer:] = warm_theta[warm_layer_params:]
     else:
         theta0 = rng.uniform(0, 2 * np.pi, size=n_theta)
 
