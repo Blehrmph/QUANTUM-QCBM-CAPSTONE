@@ -37,6 +37,39 @@ def _import_qiskit():
     return QuantumCircuit, Statevector
 
 
+_aer_simulator = None  # cached simulator instance
+
+
+def _get_aer_simulator():
+    """Return a cached AerSimulator. Tries GPU first, falls back to CPU.
+
+    Returns None if qiskit-aer is not installed (falls back to Statevector).
+    """
+    global _aer_simulator
+    if _aer_simulator is not None:
+        return _aer_simulator
+    try:
+        from qiskit_aer import AerSimulator
+        try:
+            sim = AerSimulator(method="statevector", device="GPU")
+            # Smoke-test: run a trivial circuit to confirm GPU actually works
+            from qiskit import QuantumCircuit
+            _test = QuantumCircuit(1)
+            _test.h(0)
+            _test.save_statevector()
+            sim.run(_test).result()
+            print("  [AerSimulator] Using GPU-accelerated statevector simulation")
+            _aer_simulator = sim
+        except Exception:
+            sim = AerSimulator(method="statevector", device="CPU")
+            print("  [AerSimulator] GPU not available — using CPU statevector simulation")
+            _aer_simulator = sim
+    except ImportError:
+        print("  [AerSimulator] qiskit-aer not found — falling back to qiskit.quantum_info.Statevector")
+        _aer_simulator = None
+    return _aer_simulator
+
+
 def n_params(n_qubits: int, n_layers: int, use_rzz: bool = False) -> int:
     """Total number of trainable parameters for the ansatz.
 
@@ -77,10 +110,20 @@ def build_ansatz(n_qubits: int, n_layers: int, theta: np.ndarray, use_rzz: bool 
 
 
 def qcbm_distribution(theta: np.ndarray, config: QCBMConfig) -> np.ndarray:
-    _, Statevector = _import_qiskit()
     qc = build_ansatz(config.n_qubits, config.n_layers, theta, use_rzz=config.use_rzz)
-    sv = Statevector.from_instruction(qc)
-    probs = np.abs(sv.data) ** 2
+    simulator = _get_aer_simulator()
+    if simulator is not None:
+        from qiskit import transpile
+        qc_sv = qc.copy()
+        qc_sv.save_statevector()
+        tqc = transpile(qc_sv, simulator, optimization_level=0)
+        result = simulator.run(tqc).result()
+        sv_data = np.array(result.get_statevector())
+        probs = np.abs(sv_data) ** 2
+    else:
+        _, Statevector = _import_qiskit()
+        sv = Statevector.from_instruction(qc)
+        probs = np.abs(sv.data) ** 2
     return probs
 
 
