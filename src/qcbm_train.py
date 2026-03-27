@@ -127,6 +127,36 @@ def qcbm_distribution(theta: np.ndarray, config: QCBMConfig) -> np.ndarray:
     return probs
 
 
+def qcbm_distribution_batch(thetas: list, config: QCBMConfig) -> np.ndarray:
+    """Evaluate multiple theta vectors in a single AerSimulator job.
+
+    Submits all circuits together so the GPU processes them as one batch,
+    amortising kernel-launch and Python overhead across the whole set.
+
+    Returns
+    -------
+    np.ndarray, shape (len(thetas), 2**n_qubits)
+        Probability distributions for each theta vector.
+    """
+    simulator = _get_aer_simulator()
+    if simulator is not None:
+        from qiskit import transpile
+        circuits = []
+        for theta in thetas:
+            qc = build_ansatz(config.n_qubits, config.n_layers, theta, use_rzz=config.use_rzz)
+            qc.save_statevector()
+            circuits.append(qc)
+        tqcs = transpile(circuits, simulator, optimization_level=0)
+        result = simulator.run(tqcs).result()
+        return np.stack([
+            np.abs(np.array(result.get_statevector(i))) ** 2
+            for i in range(len(circuits))
+        ])
+    else:
+        # No Aer: fall back to sequential Statevector evaluation
+        return np.stack([qcbm_distribution(theta, config) for theta in thetas])
+
+
 def empirical_distribution(
     bitstrings: np.ndarray,
     n_qubits: int,
@@ -182,6 +212,25 @@ def js_divergence(p: np.ndarray, q: np.ndarray, eps: float = 1e-12) -> float:
     return float(
         0.5 * np.sum(p * np.log(p / m)) + 0.5 * np.sum(q * np.log(q / m))
     )
+
+
+def _loss_from_dist(
+    model_probs: np.ndarray,
+    data_dist: np.ndarray,
+    anomaly_dist: np.ndarray | None,
+    lambda_contrast: float,
+    contrast_margin: float,
+) -> float:
+    """Compute the QCBM loss given a pre-evaluated model probability distribution.
+
+    Separates the cheap loss arithmetic from the expensive circuit simulation so
+    that batched circuit results can be reused without re-running the simulator.
+    """
+    loss = kl_divergence(data_dist, model_probs)
+    if anomaly_dist is not None and lambda_contrast > 0:
+        anom_kl = kl_divergence(anomaly_dist, model_probs)
+        loss += lambda_contrast * max(0.0, contrast_margin - anom_kl)
+    return loss
 
 
 def spsa_optimize(
@@ -253,6 +302,50 @@ def compute_gradient_param_shift(
     return grad
 
 
+def compute_gradient_param_shift_batched(
+    theta: np.ndarray,
+    config: QCBMConfig,
+    data_dist: np.ndarray,
+    anomaly_dist: np.ndarray | None,
+    lambda_contrast: float,
+    contrast_margin: float,
+    shift: float = np.pi / 2,
+) -> tuple[np.ndarray, float]:
+    """Parameter-shift gradient computed in a single batched GPU job.
+
+    Builds all 2*n_params + 1 shifted circuits upfront and submits them as one
+    batch to AerSimulator, replacing 321 sequential circuit submissions with a
+    single GPU job. The loss arithmetic (KL, contrastive term) is then done on
+    CPU using the returned probability arrays.
+
+    Returns
+    -------
+    grad : np.ndarray
+        Exact parameter-shift gradient, same as compute_gradient_param_shift.
+    current_loss : float
+        Loss evaluated at the un-shifted theta (used for early stopping).
+    """
+    n = len(theta)
+    thetas_batch = []
+    for i in range(n):
+        t_plus  = theta.copy(); t_plus[i]  += shift
+        t_minus = theta.copy(); t_minus[i] -= shift
+        thetas_batch.append(t_plus)
+        thetas_batch.append(t_minus)
+    thetas_batch.append(theta.copy())  # index -1: current theta for loss eval
+
+    all_probs = qcbm_distribution_batch(thetas_batch, config)
+
+    grad = np.zeros(n)
+    for i in range(n):
+        loss_plus  = _loss_from_dist(all_probs[2 * i],     data_dist, anomaly_dist, lambda_contrast, contrast_margin)
+        loss_minus = _loss_from_dist(all_probs[2 * i + 1], data_dist, anomaly_dist, lambda_contrast, contrast_margin)
+        grad[i] = (loss_plus - loss_minus) / 2.0
+
+    current_loss = _loss_from_dist(all_probs[-1], data_dist, anomaly_dist, lambda_contrast, contrast_margin)
+    return grad, current_loss
+
+
 def adam_optimize(
     loss_fn,
     theta0: np.ndarray,
@@ -261,13 +354,18 @@ def adam_optimize(
     beta1: float = 0.9,
     beta2: float = 0.999,
     eps: float = 1e-8,
-    patience: int = 15,
+    patience: int = 50,
+    grad_fn=None,
 ) -> tuple[np.ndarray, list[float]]:
     """ADAM optimizer with exact parameter-shift gradients and early stopping.
 
-    Each iteration computes 2*n_params circuit evaluations (exact gradient)
-    plus 1 evaluation for the current loss — 161 evaluations for 80 params.
-    Exact gradients mean significantly fewer iterations are needed vs SPSA.
+    Parameters
+    ----------
+    grad_fn : callable(theta) -> (grad, loss), optional
+        When provided, called instead of compute_gradient_param_shift + loss_fn.
+        Use compute_gradient_param_shift_batched here to submit all circuits in
+        one GPU job per iteration instead of 2*n_params sequential submissions.
+        If None, falls back to the original sequential parameter-shift approach.
     """
     theta = theta0.copy()
     m = np.zeros_like(theta)  # first moment
@@ -278,7 +376,11 @@ def adam_optimize(
     loss_history: list[float] = []
 
     for t in range(1, max_iter + 1):
-        grad = compute_gradient_param_shift(loss_fn, theta)
+        if grad_fn is not None:
+            grad, current_loss = grad_fn(theta)
+        else:
+            grad = compute_gradient_param_shift(loss_fn, theta)
+            current_loss = loss_fn(theta)
 
         # Bias-corrected ADAM update
         m = beta1 * m + (1.0 - beta1) * grad
@@ -287,7 +389,6 @@ def adam_optimize(
         v_hat = v / (1.0 - beta2 ** t)
         theta = theta - lr * m_hat / (np.sqrt(v_hat) + eps)
 
-        current_loss = loss_fn(theta)
         loss_history.append(current_loss)
 
         if current_loss < best_loss - 1e-5:
@@ -318,7 +419,7 @@ def train_qcbm(
     ----------
     bitstrings : np.ndarray
         Bitstrings of NORMAL training samples only.
-    config : QCBMConfig
+    config: QCBMConfig
         Training configuration.
     anomaly_bitstrings : np.ndarray, optional
         Bitstrings of known anomaly samples from training data.
@@ -376,6 +477,11 @@ def train_qcbm(
             return kl_divergence(data_dist, model_dist)
 
         if config.optimizer == "adam":
+            warm_grad_fn = None
+            if _get_aer_simulator() is not None:
+                warm_grad_fn = lambda t: compute_gradient_param_shift_batched(
+                    t, warm_config, data_dist, None, 0.0, warm_config.contrast_margin
+                )
             warm_theta, _ = adam_optimize(
                 warm_loss,
                 theta0=warm_theta0,
@@ -383,6 +489,7 @@ def train_qcbm(
                 lr=config.adam_lr,
                 beta1=config.adam_beta1,
                 beta2=config.adam_beta2,
+                grad_fn=warm_grad_fn,
             )
         else:
             warm_theta, _ = spsa_optimize(
@@ -413,12 +520,19 @@ def train_qcbm(
         # Contrastive term: penalise if model is too close to anomaly distribution
         if anomaly_dist is not None:
             anom_kl = kl_divergence(anomaly_dist, model_dist)
-            loss += config.lambda_contrast * max(0.0, config.contrast_margin - anom_kl)
+            loss += lambda_contrast * max(0.0, config.contrast_margin - anom_kl)
         return loss
 
     if config.optimizer == "adam":
         print(f"  Optimizer: ADAM  lr={config.adam_lr}  beta1={config.adam_beta1}  beta2={config.adam_beta2}")
-        print(f"  Gradient: parameter-shift rule  ({2 * n_theta} evals/step)")
+        batched = _get_aer_simulator() is not None
+        mode = f"batched GPU ({2 * n_theta + 1} circuits/job)" if batched else f"sequential ({2 * n_theta} evals/step)"
+        print(f"  Gradient: parameter-shift rule  [{mode}]")
+        grad_fn = None
+        if batched:
+            grad_fn = lambda t: compute_gradient_param_shift_batched(
+                t, config, data_dist, anomaly_dist, config.lambda_contrast, config.contrast_margin
+            )
         theta, loss_history = adam_optimize(
             loss_fn,
             theta0=theta0,
@@ -426,6 +540,7 @@ def train_qcbm(
             lr=config.adam_lr,
             beta1=config.adam_beta1,
             beta2=config.adam_beta2,
+            grad_fn=grad_fn,
         )
     else:
         theta, loss_history = spsa_optimize(

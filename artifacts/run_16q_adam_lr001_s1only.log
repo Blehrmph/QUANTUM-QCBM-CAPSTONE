@@ -1,0 +1,116 @@
+Loading dataset...
+Engineering categorical features...
+Selecting features...
+Splitting train/val/test...
+Applying log1p to skewed features...
+Feature selection (variance + mutual information)...
+Scaling features (standard)...
+Stage 1: Training QCBM on normal traffic...
+  Laplace smoothing alpha=1.0
+  Optimizer: ADAM  lr=0.001  beta1=0.9  beta2=0.999
+  [AerSimulator] GPU not available — using CPU statevector simulation
+  Gradient: parameter-shift rule  [batched GPU (321 circuits/job)]
+  ADAM iter 10/1500: loss=6.567603  best=6.567603
+  ADAM iter 20/1500: loss=6.437945  best=6.437945
+  ADAM iter 30/1500: loss=6.324557  best=6.324557
+  ADAM iter 40/1500: loss=6.221326  best=6.221326
+  ADAM iter 50/1500: loss=6.126464  best=6.126464
+  ADAM iter 60/1500: loss=6.021876  best=6.021876
+  ADAM iter 70/1500: loss=5.916692  best=5.916692
+  ADAM iter 80/1500: loss=5.821158  best=5.821158
+  ADAM iter 90/1500: loss=5.724043  best=5.724043
+  ADAM iter 100/1500: loss=5.630089  best=5.630089
+  ADAM iter 110/1500: loss=5.540634  best=5.540634
+  ADAM iter 120/1500: loss=5.459348  best=5.459348
+  ADAM iter 130/1500: loss=5.384914  best=5.384914
+  ADAM iter 140/1500: loss=5.314843  best=5.314843
+  ADAM iter 150/1500: loss=5.245996  best=5.245996
+  ADAM iter 160/1500: loss=5.178060  best=5.178060
+  ADAM iter 170/1500: loss=5.111948  best=5.111948
+  ADAM iter 180/1500: loss=5.049021  best=5.049021
+  ADAM iter 190/1500: loss=4.990141  best=4.990141
+  ADAM iter 200/1500: loss=4.934786  best=4.934786
+  ADAM iter 210/1500: loss=4.881025  best=4.881025
+  ADAM iter 220/1500: loss=4.831667  best=4.831667
+  ADAM iter 230/1500: loss=4.784422  best=4.784422
+  ADAM iter 240/1500: loss=4.738260  best=4.738260
+  ADAM iter 250/1500: loss=4.694916  best=4.694916
+  ADAM iter 260/1500: loss=4.649948  best=4.649948
+  ADAM iter 270/1500: loss=4.606547  best=4.606547
+  ADAM iter 280/1500: loss=4.560620  best=4.560620
+  ADAM iter 290/1500: loss=4.517528  best=4.517528
+  ADAM iter 300/1500: loss=4.477963  best=4.477963
+  ADAM iter 310/1500: loss=4.442973  best=4.442973
+  ADAM iter 320/1500: loss=4.399438  best=4.399438
+  ADAM iter 330/1500: loss=4.360774  best=4.360774
+  ADAM iter 340/1500: loss=4.324601  best=4.324601
+  ADAM iter 350/1500: loss=4.290500  best=4.290500
+  ADAM iter 360/1500: loss=4.258199  best=4.258199
+  ADAM iter 370/1500: loss=4.227387  best=4.227387
+  ADAM iter 380/1500: loss=4.197534  best=4.197534
+  ADAM iter 390/1500: loss=4.168220  best=4.168220
+  ADAM iter 400/1500: loss=4.139382  best=4.139382
+  ADAM iter 410/1500: loss=4.110626  best=4.110626
+  ADAM iter 420/1500: loss=4.081246  best=4.081246
+  ADAM iter 430/1500: loss=4.050660  best=4.050660
+  ADAM iter 440/1500: loss=4.019266  best=4.019266
+  ADAM iter 450/1500: loss=3.987540  best=3.987540
+  ADAM iter 460/1500: loss=3.955451  best=3.955451
+  ADAM iter 470/1500: loss=3.923149  best=3.923149
+  ADAM iter 480/1500: loss=3.889471  best=3.889471
+  ADAM iter 490/1500: loss=3.858427  best=3.858427
+  ADAM iter 500/1500: loss=3.828583  best=3.828583
+  ADAM iter 510/1500: loss=3.792205  best=3.792205
+  ADAM iter 520/1500: loss=3.760507  best=3.760507
+  ADAM iter 530/1500: loss=3.731158  best=3.731158
+  ADAM iter 540/1500: loss=3.704396  best=3.704396
+  ADAM iter 550/1500: loss=3.678860  best=3.678860
+  ADAM iter 560/1500: loss=3.650035  best=3.650035
+  ADAM iter 570/1500: loss=3.622467  best=3.622467
+  ADAM iter 580/1500: loss=3.594914  best=3.594914
+  ADAM iter 590/1500: loss=3.568380  best=3.568380
+  ADAM iter 600/1500: loss=3.543389  best=3.543389
+  ADAM iter 610/1500: loss=3.519729  best=3.519729
+  ADAM iter 620/1500: loss=3.496971  best=3.496971
+  ADAM iter 630/1500: loss=3.476043  best=3.476043
+  ADAM iter 640/1500: loss=3.457861  best=3.457861
+  ADAM iter 650/1500: loss=3.442530  best=3.442530
+  ADAM iter 660/1500: loss=3.430003  best=3.430003
+  ADAM iter 670/1500: loss=3.420128  best=3.420128
+  ADAM iter 680/1500: loss=3.412816  best=3.412816
+  ADAM iter 690/1500: loss=3.401053  best=3.401053
+  ADAM iter 700/1500: loss=3.387511  best=3.387511
+  ADAM iter 710/1500: loss=3.376382  best=3.376382
+  ADAM iter 720/1500: loss=3.368162  best=3.368162
+  ADAM iter 730/1500: loss=3.362896  best=3.362896
+  ADAM iter 740/1500: loss=3.360294  best=3.360294
+  ADAM iter 750/1500: loss=3.359217  best=3.359217
+  ADAM iter 760/1500: loss=3.360026  best=3.359192
+  ADAM iter 770/1500: loss=3.363602  best=3.359192
+  ADAM iter 780/1500: loss=3.369808  best=3.359192
+  ADAM iter 790/1500: loss=3.378250  best=3.359192
+  ADAM iter 800/1500: loss=3.388888  best=3.359192
+  Early stop at iter 801  best_loss=3.359192
+  Final KL(normal || model) : 3.359188
+  Final KL(anomaly || model): 3.956777  (set --contrast-margin above this to activate contrastive loss)
+
+Stage 1 metrics:
+  Metric         F1 threshold  Youden threshold
+  ---------------------------------------------
+  ROC-AUC              0.7056            0.7056
+  PR-AUC               0.2637            0.2637
+  F1                   0.4283            0.4283
+  Precision            0.2986            0.2986
+  Recall/DR            0.7573            0.7573
+  FAR                  0.2200            0.2200
+  MCC                  0.3749            0.3749
+  TP                    42342             42342
+  FP                    99455             99455
+  FN                    13569             13569
+  TN                   352581            352581
+
+  F1 threshold    : 1.091292  (val F1=0.4298)
+  Youden threshold: 1.091292  (val J=0.5394)
+  Tail threshold  : 1.308842  (p=0.990)
+Saving artifacts...
+Stage 1 complete.
