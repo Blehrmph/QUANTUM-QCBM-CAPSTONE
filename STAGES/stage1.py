@@ -119,13 +119,14 @@ def run_stage1(
     ensemble = max(1, int(args.qcbm_ensemble))
     if ensemble > 1:
         print(f"Ensembling QCBM models: {ensemble}")
-    train_scores = np.zeros(len(bit_train), dtype=float)
-    val_scores = np.zeros(len(bit_val), dtype=float)
-    test_scores = np.zeros(len(bit_test), dtype=float)
     thetas = []
     model_dists = []
+    model_scores_train = []
+    model_scores_val = []
+    model_scores_test = []
+    gaps = []
     for i in range(ensemble):
-        seed = args.seed + i * 7
+        seed = args.seed + i * 97  # large step for diverse initializations
         config = QCBMConfig(
             n_qubits=n_qubits,
             n_layers=args.qcbm_layers,
@@ -145,13 +146,29 @@ def run_stage1(
         train_out = train_qcbm(bit_train_normal, config, anomaly_bitstrings=bit_train_anomaly)
         thetas.append(train_out["theta"])
         model_dists.append(train_out["model_dist"])
-        val_scores   += score_samples(bit_val,   train_out["model_dist"])
-        test_scores  += score_samples(bit_test,  train_out["model_dist"])
-        train_scores += score_samples(bit_train, train_out["model_dist"])
+        model_scores_train.append(score_samples(bit_train, train_out["model_dist"]))
+        model_scores_val.append(score_samples(bit_val,     train_out["model_dist"]))
+        model_scores_test.append(score_samples(bit_test,   train_out["model_dist"]))
 
-    val_scores /= ensemble
-    test_scores /= ensemble
-    train_scores /= ensemble
+        # Gap = KL(anomaly||model) - KL(normal||model): higher = better separation
+        normal_kl = float(train_out["loss"])
+        anomaly_kl = train_out.get("anomaly_kl")
+        gap = float(anomaly_kl - normal_kl) if anomaly_kl is not None else 1.0
+        gaps.append(max(0.0, gap))
+        akl_str = f"{anomaly_kl:.4f}" if anomaly_kl is not None else "N/A"
+        print(f"  Model {i+1} (seed={seed}): normal_kl={normal_kl:.4f}  anomaly_kl={akl_str}  gap={gap:.4f}")
+
+    # Gap-weighted ensemble: models with better anomaly separation get more weight
+    total_gap = sum(gaps)
+    if total_gap < 1e-8:
+        weights = [1.0 / ensemble] * ensemble  # fallback: equal weights
+    else:
+        weights = [g / total_gap for g in gaps]
+    print(f"  Ensemble weights: {[f'{w:.3f}' for w in weights]}")
+
+    val_scores   = sum(w * s for w, s in zip(weights, model_scores_val))
+    test_scores  = sum(w * s for w, s in zip(weights, model_scores_test))
+    train_scores = sum(w * s for w, s in zip(weights, model_scores_train))
 
     normal_mask_train = (y_train.reset_index(drop=True).to_numpy() == 0)
     normal_scores_train = train_scores[normal_mask_train]

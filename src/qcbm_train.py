@@ -556,6 +556,7 @@ def train_qcbm(
     final_loss = kl_divergence(data_dist, model_dist)
 
     # Always report anomaly KL — critical for calibrating --contrast-margin
+    final_anomaly_kl = None
     if _anomaly_dist_diag is not None:
         final_anomaly_kl = kl_divergence(_anomaly_dist_diag, model_dist)
         print(f"  Final KL(normal || model) : {final_loss:.6f}")
@@ -567,5 +568,6 @@ def train_qcbm(
         "data_dist": data_dist,
         "model_dist": model_dist,
         "loss": final_loss,
+        "anomaly_kl": final_anomaly_kl,
         "loss_history": loss_history,
     }

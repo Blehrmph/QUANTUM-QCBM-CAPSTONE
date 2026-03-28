@@ -16,7 +16,8 @@
       "Bash(find /c/Users/adamh/ -name UNSW*)",
       "Bash(/c/Users/adamh/AppData/Local/Programs/Python/Python314/python.exe -c \":*)",
       "Bash(/c/Users/adamh/AppData/Local/Programs/Python/Python314/python.exe -u hierarchical_pipeline.py --features \"sbytes,Sload,dbytes,Dload,Dpkts,tcprtt,Spkts,dur\" --mi-top-k 0 --optimizer adam --adam-lr 0.001 --qcbm-iter 1500 --qcbm-layers 3 --n-bins 4 --bits-per-feature 2 --laplace-alpha 1.0 --lambda-contrast 0.0 --output-dir artifacts --seed 42 --stage1-only)",
-      "Bash(tee \"artifacts/run_16q_adam_lr001_s1only.log\")"
+      "Bash(tee \"artifacts/run_16q_adam_lr001_s1only.log\")",
+      "Bash(python3 -c \":*)"
     ]
   }
 }
