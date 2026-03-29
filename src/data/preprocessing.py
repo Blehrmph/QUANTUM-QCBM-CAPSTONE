@@ -85,6 +85,9 @@ def add_categorical_features(df: pd.DataFrame) -> pd.DataFrame:
     - is_not_tcp  : non-TCP protocols (udp/rare) have higher attack rates
     - is_int_state: state=INT (incomplete connection) = 55% attack rate for UDP
     - is_con_state: state=CON (established) = 0.1% attack rate — strongly normal
+    - is_ssh      : ssh service = 0% attack rate — perfect normal indicator
+    - is_dns      : dns service = 26.9% attack rate — strong attack indicator
+    - is_http     : http service = 9.1% attack rate — moderate attack indicator
     """
     out = df.copy()
     if "proto" in df.columns:
@@ -92,6 +95,10 @@ def add_categorical_features(df: pd.DataFrame) -> pd.DataFrame:
     if "state" in df.columns:
         out["is_int_state"] = (df["state"] == "INT").astype(float)
         out["is_con_state"] = (df["state"] == "CON").astype(float)
+    if "service" in df.columns:
+        out["is_ssh"]  = (df["service"] == "ssh").astype(float)
+        out["is_dns"]  = (df["service"] == "dns").astype(float)
+        out["is_http"] = (df["service"] == "http").astype(float)
     return out
 
 

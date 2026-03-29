@@ -90,8 +90,8 @@ def load_dataset(args):
     if subtype_col:
         need_cols.append(subtype_col)
 
-    # Also pull proto/state for categorical feature engineering if not already present
-    for col in ["proto", "state"]:
+    # Also pull proto/state/service for categorical feature engineering if not already present
+    for col in ["proto", "state", "service"]:
         if col not in df.columns:
             need_cols.append(col)
 

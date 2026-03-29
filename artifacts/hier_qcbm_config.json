@@ -6,7 +6,7 @@
   "spsa_a": 0.2,
   "spsa_c": 0.1,
   "lambda_contrast": 0.5,
-  "contrast_margin": 4.5,
+  "contrast_margin": 10.0,
   "laplace_alpha": 1.0,
   "warmstart_layers": false,
   "use_rzz": false,
