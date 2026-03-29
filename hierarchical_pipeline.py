@@ -90,13 +90,21 @@ def load_dataset(args):
     if subtype_col:
         need_cols.append(subtype_col)
 
+    # Also pull proto/state for categorical feature engineering if not already present
+    for col in ["proto", "state"]:
+        if col not in df.columns:
+            need_cols.append(col)
+
     missing = [c for c in need_cols if c not in df.columns]
     if missing:
-        labels_df = pd.read_csv(args.label_input, usecols=missing, low_memory=False)
-        if len(labels_df) != len(df):
-            raise ValueError("Label file row count does not match input file.")
-        for col in missing:
-            df[col] = labels_df[col]
+        available = pd.read_csv(args.label_input, nrows=0).columns.tolist()
+        to_load = [c for c in missing if c in available]
+        if to_load:
+            labels_df = pd.read_csv(args.label_input, usecols=to_load, low_memory=False)
+            if len(labels_df) != len(df):
+                raise ValueError("Label file row count does not match input file.")
+            for col in to_load:
+                df[col] = labels_df[col]
     return df
 
 
