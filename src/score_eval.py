@@ -9,12 +9,31 @@ def score_samples(
     bitstrings: np.ndarray,
     model_dist: np.ndarray,
     eps: float = 1e-12,
+    hamming_smooth: bool = False,
+    normal_bitstrings: np.ndarray | None = None,
 ) -> np.ndarray:
     """Score samples as anomaly candidates via negative log probability.
 
     High score = low probability under the learned normal distribution = likely anomaly.
+
+    If hamming_smooth=True and normal_bitstrings is provided, unseen bitstrings
+    (those not in the training normal set) are replaced by their Hamming-nearest
+    observed normal bitstring before scoring.  This directly attacks the FAR floor
+    caused by normal traffic mapping to bins never seen during training.
     """
     indices = bitstrings_to_indices(bitstrings)
+
+    if hamming_smooth and normal_bitstrings is not None:
+        observed_idx = set(bitstrings_to_indices(normal_bitstrings).tolist())
+        obs_bs = np.unique(normal_bitstrings, axis=0)  # (n_observed, n_qubits)
+        obs_idx = bitstrings_to_indices(obs_bs).tolist()
+
+        for k, (idx, bs) in enumerate(zip(indices, bitstrings)):
+            if idx not in observed_idx:
+                # Hamming distance to every observed normal bitstring
+                dists = np.sum(obs_bs != bs, axis=1)
+                indices[k] = obs_idx[int(np.argmin(dists))]
+
     probs = np.clip(model_dist[indices], eps, 1.0)
     return -np.log(probs)
 

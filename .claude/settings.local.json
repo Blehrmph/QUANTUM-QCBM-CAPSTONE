@@ -20,7 +20,8 @@
       "Bash(python3 -c \":*)",
       "Bash(/c/Users/adamh/AppData/Local/Programs/Python/Python314/python.exe -u hierarchical_pipeline.py --features \"sbytes,Sload,dbytes,Dload,Dpkts,is_not_tcp,is_int_state,is_con_state\" --mi-top-k 0 --optimizer adam --adam-lr 0.003 --qcbm-iter 1500 --qcbm-layers 3 --qcbm-ensemble 3 --warmstart-layers --n-bins 4 --bits-per-feature 2 --laplace-alpha 1.0 --lambda-contrast 0.0 --output-dir artifacts --seed 42 --stage1-only)",
       "Bash(tee \"artifacts/run_16q_adam003_ens3_categorical.log\")",
-      "Bash(C:/Users/adamh/AppData/Local/Programs/Python/Python314/python.exe -c \":*)"
+      "Bash(C:/Users/adamh/AppData/Local/Programs/Python/Python314/python.exe -c \":*)",
+      "Bash(python hierarchical_pipeline.py --features \"sbytes,Sload,dbytes,Dload,Dpkts,is_not_tcp,is_int_state,is_con_state\" --optimizer adam --adam-lr 0.003 --qcbm-iter 1500 --qcbm-layers 3 --qcbm-ensemble 3 --warmstart-layers --n-bins 2 --bits-per-feature 1 --lambda-contrast 0.5 --contrast-margin 7.0 --laplace-alpha 1.0)"
     ]
   }
 }

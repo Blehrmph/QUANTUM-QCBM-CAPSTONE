@@ -57,6 +57,14 @@ def build_arg_parser():
                         help="Apply Platt scaling to calibrate anomaly scores using validation labels.")
     parser.add_argument("--warmstart-layers", action="store_true", default=False,
                         help="Pre-train with n_layers-1 then expand to full depth (avoids barren plateaus).")
+    parser.add_argument("--hamming-smooth", action="store_true", default=False,
+                        help="Replace unseen bitstrings with Hamming-nearest observed normal bitstring at scoring time.")
+    parser.add_argument("--auto-mixed-precision", action="store_true", default=False,
+                        help="Auto-assign bits: binary features (<=2 unique vals) get 1 bit/2 bins; "
+                             "continuous features get --bits-per-feature bits / --n-bins bins.")
+    parser.add_argument("--subspace-features-b", default="",
+                        help="Second feature set for subspace ensemble (comma-separated). "
+                             "Trains a second QCBM and combines scores by averaging.")
     parser.add_argument("--spsa-a-values", default="",
                         help="Comma-separated spsa_a values to sweep (e.g. '0.3,0.628,1.0').")
     parser.add_argument("--spsa-c-values", default="",
@@ -195,6 +203,29 @@ def main():
     X_train = scaler.transform(splits.X_train, features)
     X_val = scaler.transform(splits.X_val, features)
     X_test = scaler.transform(splits.X_test, features)
+
+    # Build full-feature scaled splits for subspace ensemble B (uses different column subsets)
+    subspace_b_str = getattr(args, "subspace_features_b", "").strip()
+    if subspace_b_str:
+        feats_all = list(dict.fromkeys(features + [f.strip() for f in subspace_b_str.split(",") if f.strip()]))
+        # Re-use the same train/val/test index splits but include all needed columns from df
+        all_cols_df = select_features(df, feats_all)
+        from src.training_setup import train_val_test_split as _tvt
+        # Use same indices as splits
+        all_train = all_cols_df.loc[splits.X_train.index]
+        all_val   = all_cols_df.loc[splits.X_val.index]
+        all_test  = all_cols_df.loc[splits.X_test.index]
+        if args.log1p:
+            all_train = apply_log1p(all_train, DEFAULT_LOG1P_COLS)
+            all_val   = apply_log1p(all_val,   DEFAULT_LOG1P_COLS)
+            all_test  = apply_log1p(all_test,  DEFAULT_LOG1P_COLS)
+        scaler_all = Scaler(mode=args.scaler).fit(all_train, feats_all)
+        X_train_all = scaler_all.transform(all_train, feats_all)
+        X_val_all   = scaler_all.transform(all_val,   feats_all)
+        X_test_all  = scaler_all.transform(all_test,  feats_all)
+        args._X_train_all = X_train_all
+        args._X_val_all   = X_val_all
+        args._X_test_all  = X_test_all
 
     if args.sweep:
         bins_list = _parse_int_list(args.sweep_bins)
