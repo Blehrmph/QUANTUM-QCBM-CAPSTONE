@@ -99,6 +99,86 @@ def find_far_constrained_threshold(y_true, scores, target_far=0.05):
     return best_t, best_far, best_recall
 
 
+def make_domain_entanglement_pairs(
+    features: list[str],
+    bits_map: dict[str, int] | None,
+    bits_per_feature: int,
+) -> list[tuple[int, int]]:
+    """Build domain-informed CNOT entanglement pairs based on known feature correlations.
+
+    Assigns each feature its qubit range, then adds entanglement edges between
+    features that are semantically correlated in network traffic:
+
+      SOURCE side:    sbytes <-> Sload, Spkts
+      DEST side:      dbytes <-> Dload, Dpkts
+      CROSS-direction: sbytes <-> dbytes, Sload <-> Dload
+      PACKET-BYTE:    Dpkts <-> dbytes, Spkts <-> sbytes
+      PROTOCOL:       is_not_tcp <-> is_int_state <-> is_con_state
+
+    Within each multi-bit feature, adjacent bits are also entangled.
+    Falls back to circular if fewer than 2 features are present.
+    """
+    # Build qubit offset map: feature -> [qubit indices]
+    qubit_map: dict[str, list[int]] = {}
+    offset = 0
+    for f in features:
+        bits = (bits_map.get(f, bits_per_feature) if bits_map else bits_per_feature)
+        qubit_map[f] = list(range(offset, offset + bits))
+        offset += bits
+
+    pairs: list[tuple[int, int]] = []
+    seen: set[tuple[int, int]] = set()
+
+    def add(a: int, b: int):
+        if a != b:
+            key = (min(a, b), max(a, b))
+            if key not in seen:
+                seen.add(key)
+                pairs.append((a, b))
+
+    def connect_features(fa: str, fb: str):
+        """Entangle first qubit of fa with first qubit of fb."""
+        if fa in qubit_map and fb in qubit_map:
+            add(qubit_map[fa][0], qubit_map[fb][0])
+
+    # 1. Within-feature: entangle adjacent bits of the same feature
+    for f, qubits in qubit_map.items():
+        for i in range(len(qubits) - 1):
+            add(qubits[i], qubits[i + 1])
+
+    # 2. Source side: bytes, load, packets on source direction
+    for fa, fb in [("sbytes", "Sload"), ("sbytes", "Spkts"), ("Sload", "Spkts")]:
+        connect_features(fa, fb)
+
+    # 3. Destination side
+    for fa, fb in [("dbytes", "Dload"), ("dbytes", "Dpkts"), ("Dload", "Dpkts")]:
+        connect_features(fa, fb)
+
+    # 4. Cross-direction asymmetry (common in attack vs normal traffic)
+    for fa, fb in [("sbytes", "dbytes"), ("Sload", "Dload"), ("Spkts", "Dpkts")]:
+        connect_features(fa, fb)
+
+    # 5. Packet-byte relationship
+    for fa, fb in [("Dpkts", "dbytes"), ("Spkts", "sbytes")]:
+        connect_features(fa, fb)
+
+    # 6. Protocol flags
+    for fa, fb in [("is_not_tcp", "is_int_state"), ("is_not_tcp", "is_con_state"),
+                   ("is_int_state", "is_con_state")]:
+        connect_features(fa, fb)
+
+    # 7. Protocol -> traffic volume (TCP vs non-TCP affects byte counts)
+    for fa, fb in [("is_not_tcp", "sbytes"), ("is_not_tcp", "dbytes")]:
+        connect_features(fa, fb)
+
+    # Fallback: if fewer than 2 pairs generated, use circular
+    n_qubits = offset
+    if len(pairs) < 2:
+        return [(q, (q + 1) % n_qubits) for q in range(n_qubits)]
+
+    return pairs
+
+
 def zscore(scores, mu, sigma):
     denom = sigma if sigma else 1.0
     return (scores - mu) / denom
@@ -172,6 +252,14 @@ def run_stage1(
             "Reduce features or bits-per-feature."
         )
 
+    # Domain-informed entanglement topology
+    use_domain_entanglement = getattr(args, "domain_entanglement", False)
+    entanglement_pairs = None
+    if use_domain_entanglement:
+        entanglement_pairs = make_domain_entanglement_pairs(features, bits_map, args.bits_per_feature)
+        print(f"  Domain entanglement: {len(entanglement_pairs)} CNOT pairs")
+        print(f"    {entanglement_pairs}")
+
     ensemble = max(1, int(args.qcbm_ensemble))
     if ensemble > 1:
         print(f"Ensembling QCBM models: {ensemble}")
@@ -198,6 +286,7 @@ def run_stage1(
             adam_lr=getattr(args, "adam_lr", 0.01),
             adam_beta1=getattr(args, "adam_beta1", 0.9),
             adam_beta2=getattr(args, "adam_beta2", 0.999),
+            entanglement_pairs=entanglement_pairs,
         )
         train_out = train_qcbm(bit_train_normal, config, anomaly_bitstrings=bit_train_anomaly)
         thetas.append(train_out["theta"])
@@ -330,6 +419,8 @@ def run_stage1(
 
     metrics_f1     = evaluate(y_test.to_numpy(), test_scores_z, threshold=f1_t)
     metrics_youden = evaluate(y_test.to_numpy(), test_scores_z, threshold=youden_t)
+    val_metrics_f1     = evaluate(y_val.to_numpy(), val_scores_z, threshold=f1_t)
+    val_metrics_youden = evaluate(y_val.to_numpy(), val_scores_z, threshold=youden_t)
     # FAR-constrained operating points from the test ROC curve.
     # With only ~30 discrete score bins, some targets may not be reachable.
     # We also compute and report the min-FAR operating point (at max threshold).
@@ -346,20 +437,20 @@ def run_stage1(
     metrics_minFAR = evaluate(y_test.to_numpy(), test_scores_z, threshold=t_minFAR)
 
     print("\nStage 1 metrics:")
-    print(f"  {'Metric':<12} {'F1 threshold':>14} {'Youden threshold':>17}")
-    print(f"  {'-'*45}")
-    print(f"  {'ROC-AUC':<12} {metrics_f1['roc_auc']:>14.4f} {metrics_youden['roc_auc']:>17.4f}")
-    print(f"  {'PR-AUC':<12} {metrics_f1['pr_auc']:>14.4f} {metrics_youden['pr_auc']:>17.4f}")
+    print(f"  {'Metric':<12} {'F1-t (val)':>12} {'F1-t (test)':>13} {'Youden (val)':>14} {'Youden (test)':>15}")
+    print(f"  {'-'*68}")
+    print(f"  {'ROC-AUC':<12} {'':>12} {metrics_f1['roc_auc']:>13.4f} {'':>14} {metrics_youden['roc_auc']:>15.4f}")
+    print(f"  {'PR-AUC':<12} {'':>12} {metrics_f1['pr_auc']:>13.4f} {'':>14} {metrics_youden['pr_auc']:>15.4f}")
     if "f1" in metrics_f1:
-        print(f"  {'F1':<12} {metrics_f1['f1']:>14.4f} {metrics_youden['f1']:>17.4f}")
-        print(f"  {'Precision':<12} {metrics_f1['precision']:>14.4f} {metrics_youden['precision']:>17.4f}")
-        print(f"  {'Recall/DR':<12} {metrics_f1['recall_dr']:>14.4f} {metrics_youden['recall_dr']:>17.4f}")
-        print(f"  {'FAR':<12} {metrics_f1['far']:>14.4f} {metrics_youden['far']:>17.4f}")
-        print(f"  {'MCC':<12} {metrics_f1['mcc']:>14.4f} {metrics_youden['mcc']:>17.4f}")
-        print(f"  {'TP':<12} {metrics_f1['tp']:>14d} {metrics_youden['tp']:>17d}")
-        print(f"  {'FP':<12} {metrics_f1['fp']:>14d} {metrics_youden['fp']:>17d}")
-        print(f"  {'FN':<12} {metrics_f1['fn']:>14d} {metrics_youden['fn']:>17d}")
-        print(f"  {'TN':<12} {metrics_f1['tn']:>14d} {metrics_youden['tn']:>17d}")
+        print(f"  {'F1':<12} {val_metrics_f1['f1']:>12.4f} {metrics_f1['f1']:>13.4f} {val_metrics_youden['f1']:>14.4f} {metrics_youden['f1']:>15.4f}")
+        print(f"  {'Precision':<12} {val_metrics_f1['precision']:>12.4f} {metrics_f1['precision']:>13.4f} {val_metrics_youden['precision']:>14.4f} {metrics_youden['precision']:>15.4f}")
+        print(f"  {'Recall/DR':<12} {val_metrics_f1['recall_dr']:>12.4f} {metrics_f1['recall_dr']:>13.4f} {val_metrics_youden['recall_dr']:>14.4f} {metrics_youden['recall_dr']:>15.4f}")
+        print(f"  {'FAR':<12} {val_metrics_f1['far']:>12.4f} {metrics_f1['far']:>13.4f} {val_metrics_youden['far']:>14.4f} {metrics_youden['far']:>15.4f}")
+        print(f"  {'MCC':<12} {val_metrics_f1['mcc']:>12.4f} {metrics_f1['mcc']:>13.4f} {val_metrics_youden['mcc']:>14.4f} {metrics_youden['mcc']:>15.4f}")
+        print(f"  {'TP':<12} {val_metrics_f1['tp']:>12d} {metrics_f1['tp']:>13d} {val_metrics_youden['tp']:>14d} {metrics_youden['tp']:>15d}")
+        print(f"  {'FP':<12} {val_metrics_f1['fp']:>12d} {metrics_f1['fp']:>13d} {val_metrics_youden['fp']:>14d} {metrics_youden['fp']:>15d}")
+        print(f"  {'FN':<12} {val_metrics_f1['fn']:>12d} {metrics_f1['fn']:>13d} {val_metrics_youden['fn']:>14d} {metrics_youden['fn']:>15d}")
+        print(f"  {'TN':<12} {val_metrics_f1['tn']:>12d} {metrics_f1['tn']:>13d} {val_metrics_youden['tn']:>14d} {metrics_youden['tn']:>15d}")
     print(f"\n  F1 threshold    : {f1_t:.6f}  (val F1={best_f1:.4f})")
     print(f"  Youden threshold: {youden_t:.6f}  (val J={best_j:.4f})")
     print(f"  Tail threshold  : {tail_t:.6f}  (p={args.tail_percentile:.3f})")
@@ -394,6 +485,8 @@ def run_stage1(
     # Save all metric sets; mark which threshold was used for predictions
     stage1_metrics = metrics_youden
     stage1_metrics["f1_threshold_metrics"] = metrics_f1
+    stage1_metrics["val_youden_metrics"] = val_metrics_youden
+    stage1_metrics["val_f1_metrics"] = val_metrics_f1
     stage1_metrics["far_constrained_metrics"] = {
         f"far_{int(k*100)}pct": v for k, v in metrics_far.items()
     }

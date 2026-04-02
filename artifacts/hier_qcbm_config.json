@@ -13,5 +13,6 @@
   "optimizer": "spsa",
   "adam_lr": 0.01,
   "adam_beta1": 0.9,
-  "adam_beta2": 0.999
+  "adam_beta2": 0.999,
+  "entanglement_pairs": null
 }

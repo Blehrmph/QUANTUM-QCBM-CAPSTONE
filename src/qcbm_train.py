@@ -24,6 +24,7 @@ class QCBMConfig:
     adam_lr: float = 0.01           # ADAM learning rate
     adam_beta1: float = 0.9         # ADAM first moment decay
     adam_beta2: float = 0.999       # ADAM second moment decay
+    entanglement_pairs: list | None = None  # explicit CNOT pairs [(ctrl, tgt), ...]; None = circular
 
 
 def _import_qiskit():
@@ -81,14 +82,21 @@ def n_params(n_qubits: int, n_layers: int, use_rzz: bool = False) -> int:
     return per_layer * n_layers + n_qubits
 
 
-def build_ansatz(n_qubits: int, n_layers: int, theta: np.ndarray, use_rzz: bool = False):
-    """Hardware-efficient ansatz: RZ-RY-RZ rotations + circular entanglement.
+def build_ansatz(
+    n_qubits: int,
+    n_layers: int,
+    theta: np.ndarray,
+    use_rzz: bool = False,
+    entanglement_pairs: list | None = None,
+):
+    """Hardware-efficient ansatz: RZ-RY-RZ rotations + entanglement layer.
 
     Entanglement options:
-    - use_rzz=False (default): fixed CNOT circular pattern (no extra params).
-    - use_rzz=True: parametrised RZZ(theta) circular pattern — the optimizer
-      learns the strength/direction of each qubit-pair correlation rather than
-      using an all-or-nothing fixed gate.
+    - entanglement_pairs=None, use_rzz=False (default): fixed CNOT circular pattern.
+    - entanglement_pairs=None, use_rzz=True: parametrised RZZ circular pattern.
+    - entanglement_pairs=[(ctrl, tgt), ...]: domain-informed CNOT topology.
+      Each pair is a (control, target) qubit index. Applied once per layer.
+      use_rzz is ignored when entanglement_pairs is provided.
     """
     QuantumCircuit, _ = _import_qiskit()
     qc = QuantumCircuit(n_qubits)
@@ -98,11 +106,15 @@ def build_ansatz(n_qubits: int, n_layers: int, theta: np.ndarray, use_rzz: bool 
             qc.rz(theta[idx], q); idx += 1
             qc.ry(theta[idx], q); idx += 1
             qc.rz(theta[idx], q); idx += 1
-        for q in range(n_qubits):
-            if use_rzz:
-                qc.rzz(theta[idx], q, (q + 1) % n_qubits); idx += 1
-            else:
-                qc.cx(q, (q + 1) % n_qubits)
+        if entanglement_pairs is not None:
+            for ctrl, tgt in entanglement_pairs:
+                qc.cx(ctrl, tgt)
+        else:
+            for q in range(n_qubits):
+                if use_rzz:
+                    qc.rzz(theta[idx], q, (q + 1) % n_qubits); idx += 1
+                else:
+                    qc.cx(q, (q + 1) % n_qubits)
     for q in range(n_qubits):
         qc.ry(theta[idx], q)
         idx += 1
@@ -110,7 +122,8 @@ def build_ansatz(n_qubits: int, n_layers: int, theta: np.ndarray, use_rzz: bool 
 
 
 def qcbm_distribution(theta: np.ndarray, config: QCBMConfig) -> np.ndarray:
-    qc = build_ansatz(config.n_qubits, config.n_layers, theta, use_rzz=config.use_rzz)
+    qc = build_ansatz(config.n_qubits, config.n_layers, theta, use_rzz=config.use_rzz,
+                      entanglement_pairs=config.entanglement_pairs)
     simulator = _get_aer_simulator()
     if simulator is not None:
         from qiskit import transpile
@@ -143,7 +156,8 @@ def qcbm_distribution_batch(thetas: list, config: QCBMConfig) -> np.ndarray:
         from qiskit import transpile
         circuits = []
         for theta in thetas:
-            qc = build_ansatz(config.n_qubits, config.n_layers, theta, use_rzz=config.use_rzz)
+            qc = build_ansatz(config.n_qubits, config.n_layers, theta, use_rzz=config.use_rzz,
+                              entanglement_pairs=config.entanglement_pairs)
             qc.save_statevector()
             circuits.append(qc)
         tqcs = transpile(circuits, simulator, optimization_level=0)

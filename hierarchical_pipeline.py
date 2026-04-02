@@ -62,6 +62,9 @@ def build_arg_parser():
     parser.add_argument("--auto-mixed-precision", action="store_true", default=False,
                         help="Auto-assign bits: binary features (<=2 unique vals) get 1 bit/2 bins; "
                              "continuous features get --bits-per-feature bits / --n-bins bins.")
+    parser.add_argument("--domain-entanglement", action="store_true", default=False,
+                        help="Use domain-informed CNOT topology instead of generic circular entanglement. "
+                             "Encodes known feature correlations (sbytes<->Sload, dbytes<->Dload, etc.).")
     parser.add_argument("--subspace-features-b", default="",
                         help="Second feature set for subspace ensemble (comma-separated). "
                              "Trains a second QCBM and combines scores by averaging.")
