@@ -1,0 +1,30 @@
+\begin{table}[htbp]
+\centering
+\caption{Ablation study. Each row varies one component while holding all others at the best configuration. * denotes approximate value from earlier experimental phase.}
+\label{tab:ablation}
+\begin{tabular}{llrrp{4cm}}
+\toprule
+\textbf{Ablation} & \textbf{Configuration} & \textbf{ROC-AUC} & \textbf{PR-AUC} & \textbf{Notes} \\
+\midrule
+\multirow{3}{*}{Encoding} & 1 bit/feature (10q) & 0.8100 & — & Too coarse \\
+ & 2 bits/feature (13q) \textbf{[best]} & \textbf{0.9350} & \textbf{0.5230} & AMP \\
+ & 4 bits/feature (17q) & 0.5707 & 0.1729 & State space too sparse \\
+\midrule
+\multirow{3}{*}{Contrast margin} & $m=5$ & 0.920* & — & No FAR floor \\
+ & $m=10$ \textbf{[best]} & \textbf{0.9350} & \textbf{0.5230} & 7.6\% FAR floor \\
+ & $m=15$ & 0.9304 & — & Model collapse (1 of 3) \\
+\midrule
+\multirow{2}{*}{Entanglement} & Circular CNOT \textbf{[best]} & \textbf{0.9350} & \textbf{0.5230} & Uniform expressibility \\
+ & Domain-informed CNOT & 0.9025 & — & Uneven qubit expressibility \\
+\midrule
+\multirow{2}{*}{Optimizer} & SPSA & 0.7702 & 0.3915 & Slower convergence \\
+ & ADAM lr=0.003 \textbf{[best]} & \textbf{0.9350} & \textbf{0.5230} & 1500 iters \\
+\midrule
+\multirow{2}{*}{Ensemble} & Single model & — & — & Higher variance \\
+ & 3 models gap-weighted \textbf{[best]} & \textbf{0.9350} & \textbf{0.5230} & Majority vote available \\
+\midrule
+\multirow{2}{*}{Warm-start} & Direct 3-layer init & — & — & Barren plateau risk \\
+ & 2-layer $\to$ 3-layer \textbf{[best]} & \textbf{0.9350} & \textbf{0.5230} & Stable convergence \\
+\bottomrule
+\end{tabular}
+\end{table}

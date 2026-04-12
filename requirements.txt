@@ -5,3 +5,6 @@ qiskit
 qiskit-aer
 imbalanced-learn
 matplotlib
+pylatexenc
+Pillow
+xgboost

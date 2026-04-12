@@ -99,6 +99,39 @@ def find_far_constrained_threshold(y_true, scores, target_far=0.05):
     return best_t, best_far, best_recall
 
 
+def find_precision_constrained_threshold(y_true, scores, target_precision=0.70, min_recall=0.50):
+    """Return the lowest threshold where precision >= target_precision AND recall >= min_recall.
+
+    Scans HIGH -> LOW (tightest to most permissive). The first threshold that
+    satisfies both constraints gives the maximum-recall operating point at the
+    desired precision level.
+
+    Returns:
+        threshold (float), achieved_precision (float), achieved_recall (float), achieved_f1 (float)
+        Returns None x4 if no threshold satisfies both constraints simultaneously.
+    """
+    y_true  = np.asarray(y_true)
+    scores  = np.asarray(scores)
+    thresholds = np.sort(np.unique(scores))[::-1]  # high -> low
+    if len(thresholds) > 500:
+        thresholds = np.quantile(scores, np.linspace(1.0, 0.0, 501))
+
+    best_t = best_p = best_r = best_f1 = None
+    for t in thresholds:
+        y_pred = (scores >= t).astype(int)
+        tp = np.sum((y_pred == 1) & (y_true == 1))
+        fp = np.sum((y_pred == 1) & (y_true == 0))
+        fn = np.sum((y_pred == 0) & (y_true == 1))
+        precision = tp / (tp + fp) if (tp + fp) else 0.0
+        recall    = tp / (tp + fn) if (tp + fn) else 0.0
+        f1 = (2 * precision * recall) / (precision + recall) if (precision + recall) else 0.0
+        if precision >= target_precision and recall >= min_recall:
+            best_t, best_p, best_r, best_f1 = float(t), float(precision), float(recall), float(f1)
+            break  # first valid from high end = max recall at precision budget
+
+    return best_t, best_p, best_r, best_f1
+
+
 def make_domain_entanglement_pairs(
     features: list[str],
     bits_map: dict[str, int] | None,
@@ -478,6 +511,114 @@ def run_stage1(
           f"{mf.get('f1',0):>8.4f}  {mf.get('mcc',0):>8.4f}  {mf.get('tp',0):>7d}  {mf.get('fp',0):>7d}"
           f"  <- max-threshold (FAR floor)")
 
+    # Precision-constrained operating points
+    prec_targets_str = getattr(args, "precision_targets", "0.65,0.70,0.75,0.80")
+    prec_targets = [float(v.strip()) for v in prec_targets_str.split(",") if v.strip()]
+    min_recall_floor = getattr(args, "min_recall", 0.50)
+    metrics_prec = {}
+    for target_p in prec_targets:
+        t_p, _, _, _ = find_precision_constrained_threshold(
+            y_val.to_numpy(), val_scores_z,
+            target_precision=target_p, min_recall=min_recall_floor
+        )
+        if t_p is not None:
+            metrics_prec[target_p] = evaluate(y_test.to_numpy(), test_scores_z, threshold=t_p)
+            metrics_prec[target_p]["_threshold"] = t_p
+
+    print(f"\n  Precision-constrained operating points (val-selected, test-evaluated | min_recall>={min_recall_floor:.0%}):")
+    print(f"  {'Target Prec':>13} {'Precision':>11} {'Recall/DR':>11} {'F1':>8} {'FAR':>8} {'MCC':>8} {'TP':>7} {'FP':>7}")
+    print(f"  {'-'*78}")
+    for target_p in prec_targets:
+        if target_p in metrics_prec:
+            m = metrics_prec[target_p]
+            print(f"  {target_p*100:>11.0f}%  "
+                  f"{m.get('precision',0)*100:>9.1f}%  "
+                  f"{m.get('recall_dr',0)*100:>9.1f}%  "
+                  f"{m.get('f1',0):>8.4f}  "
+                  f"{m.get('far',0)*100:>6.1f}%  "
+                  f"{m.get('mcc',0):>8.4f}  "
+                  f"{m.get('tp',0):>7d}  "
+                  f"{m.get('fp',0):>7d}")
+        else:
+            print(f"  {target_p*100:>11.0f}%  unreachable (recall would fall below {min_recall_floor:.0%})")
+
+    # ── Majority-vote ensemble (≥ ceil(k/2) models must independently flag) ──────
+    metrics_vote = None
+    if ensemble > 1 and len(model_scores_val) == ensemble:
+        per_model_thresholds = [
+            find_best_threshold(y_val.to_numpy(), model_scores_val[i])[0]
+            for i in range(ensemble)
+        ]
+        min_votes = (ensemble + 1) // 2  # ceil(ensemble/2): 2 for 3 models
+        test_vote_matrix = np.stack(
+            [(model_scores_test[i] >= per_model_thresholds[i]).astype(np.int32) for i in range(ensemble)]
+        )
+        majority_votes_test = test_vote_matrix.sum(axis=0).astype(float)
+        # threshold at min_votes - 0.5: any sample with vote count >= min_votes is anomaly
+        metrics_vote = evaluate(y_test.to_numpy(), majority_votes_test, threshold=min_votes - 0.5)
+
+        print(f"\n  Majority-vote ensemble (>={min_votes}/{ensemble} models agree -- precision-optimised):")
+        print(f"  {'Metric':<12} {'Majority Vote':>15}   vs   {'Weighted Avg (Youden)':>22}")
+        print(f"  {'-'*60}")
+        for key, label in [("roc_auc","ROC-AUC"), ("pr_auc","PR-AUC"), ("f1","F1"),
+                            ("precision","Precision"), ("recall_dr","Recall/DR"),
+                            ("far","FAR"), ("mcc","MCC")]:
+            v_vote   = metrics_vote.get(key, 0.0)
+            v_youden = metrics_youden.get(key, 0.0)
+            delta = v_vote - v_youden
+            sign  = "+" if delta >= 0 else ""
+            print(f"  {label:<12} {v_vote:>15.4f}         {v_youden:>22.4f}  ({sign}{delta:.4f})")
+        if "tp" in metrics_vote:
+            print(f"  {'TP':<12} {metrics_vote['tp']:>15d}         {metrics_youden.get('tp',0):>22d}")
+            print(f"  {'FP':<12} {metrics_vote['fp']:>15d}         {metrics_youden.get('fp',0):>22d}")
+
+    # ── Two-stage Logistic Regression precision layer ────────────────────────
+    # Fit LR on val using per-model raw scores as features.
+    # This learns how model disagreements correlate with true anomalies,
+    # providing a calibrated precision layer with no QCBM retraining.
+    metrics_lr = None
+    lr_model = None
+    if ensemble >= 1 and len(model_scores_val) == ensemble:
+        try:
+            from sklearn.linear_model import LogisticRegression
+            X_lr_val  = np.column_stack(model_scores_val)   # (N_val,  ensemble)
+            X_lr_test = np.column_stack(model_scores_test)  # (N_test, ensemble)
+            lr_model = LogisticRegression(C=1.0, solver="lbfgs", max_iter=1000,
+                                          class_weight="balanced", random_state=42)
+            lr_model.fit(X_lr_val, y_val.to_numpy())
+            lr_proba_val  = lr_model.predict_proba(X_lr_val)[:, 1]
+            lr_proba_test = lr_model.predict_proba(X_lr_test)[:, 1]
+            lr_t, _ = find_best_threshold(y_val.to_numpy(), lr_proba_val)
+            metrics_lr = evaluate(y_test.to_numpy(), lr_proba_test, threshold=lr_t)
+
+            print(f"\n  Two-stage LR (QCBM scores -> LR calibration layer):")
+            print(f"  {'Metric':<12} {'LR-Calibrated':>15}   vs   {'Weighted Avg (F1-t)':>21}")
+            print(f"  {'-'*60}")
+            for key, label in [("roc_auc","ROC-AUC"), ("pr_auc","PR-AUC"), ("f1","F1"),
+                                ("precision","Precision"), ("recall_dr","Recall/DR"),
+                                ("far","FAR"), ("mcc","MCC")]:
+                v_lr  = metrics_lr.get(key, 0.0)
+                v_f1  = metrics_f1.get(key, 0.0)
+                delta = v_lr - v_f1
+                sign  = "+" if delta >= 0 else ""
+                print(f"  {label:<12} {v_lr:>15.4f}         {v_f1:>21.4f}  ({sign}{delta:.4f})")
+            if "tp" in metrics_lr:
+                print(f"  {'TP':<12} {metrics_lr['tp']:>15d}         {metrics_f1.get('tp',0):>21d}")
+                print(f"  {'FP':<12} {metrics_lr['fp']:>15d}         {metrics_f1.get('fp',0):>21d}")
+        except Exception as e:
+            print(f"  Two-stage LR failed: {e}")
+
+    # ── Bitstring coverage analysis & FAR floor derivation ───────────────────
+    try:
+        from src.bitstring_coverage import compute_bitstring_coverage, print_coverage_report
+        coverage_stats = compute_bitstring_coverage(
+            bit_train_normal, bit_test, y_test.to_numpy(), n_qubits
+        )
+        print_coverage_report(coverage_stats)
+    except Exception as e:
+        coverage_stats = None
+        print(f"  Coverage analysis failed: {e}")
+
     # Use Youden threshold for downstream stages -- better DR/FAR tradeoff for IDS
     pred_anom_train = train_scores_z >= youden_t
     pred_anom_test  = test_scores_z  >= youden_t
@@ -490,6 +631,12 @@ def run_stage1(
     stage1_metrics["far_constrained_metrics"] = {
         f"far_{int(k*100)}pct": v for k, v in metrics_far.items()
     }
+    if metrics_vote is not None:
+        stage1_metrics["majority_vote_metrics"] = metrics_vote
+    if metrics_lr is not None:
+        stage1_metrics["two_stage_lr_metrics"] = metrics_lr
+    if coverage_stats is not None:
+        stage1_metrics["bitstring_coverage"] = coverage_stats
     stage1_metrics["active_threshold"] = "youden"
 
     return {

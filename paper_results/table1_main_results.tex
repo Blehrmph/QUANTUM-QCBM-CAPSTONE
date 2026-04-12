@@ -1,0 +1,16 @@
+\begin{table}[htbp]
+\centering
+\caption{QCBM Stage 1 operating points. Thresholds selected on validation set, evaluated on held-out test set. Val$\to$test gap $<0.003$ across all metrics.}
+\label{tab:stage1_results}
+\begin{tabular}{lrrrrrrr}
+\toprule
+\textbf{Threshold Strategy} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} & \textbf{FAR} & \textbf{MCC} & \textbf{ROC-AUC} & \textbf{PR-AUC} \\
+\midrule
+\textbf{F1-maximising (val $\to$ test)} & \textbf{55.06\%} & \textbf{75.73\%} & \textbf{0.6376} & \textbf{7.65\%} & \textbf{0.5945} & \textbf{0.9350} & \textbf{0.5230} \\
+Youden's J (val $\to$ test) & 44.61\% & 92.17\% & 0.6012 & 14.15\% & 0.5825 & 0.9350 & 0.5230 \\
+FAR $\leq 10\%$ constrained & 49.94\% & 80.57\% & 0.6166 & 9.99\% & 0.5780 & 0.9350 & 0.5230 \\
+Majority vote ($\geq$2/3 agree) & 55.10\% & 76.19\% & 0.6395 & 7.68\% & 0.5969 & 0.9037 & 0.5016 \\
+Two-stage LR calibration & 51.17\% & 92.78\% & 0.6596 & 10.95\% & 0.6408 & 0.9377 & 0.5296 \\
+\bottomrule
+\end{tabular}
+\end{table}

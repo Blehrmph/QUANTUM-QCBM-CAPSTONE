@@ -1,5 +1,6 @@
 import argparse
 import json
+import sys
 
 import numpy as np
 import pandas as pd
@@ -76,6 +77,13 @@ def build_arg_parser():
     parser.add_argument("--mi-top-k", type=int, default=8)
     parser.add_argument("--var-threshold", type=float, default=0.0)
     parser.add_argument("--tail-percentile", type=float, default=0.99)
+    parser.add_argument("--precision-targets", default="0.65,0.70,0.75,0.80",
+                        help="Comma-separated precision targets for precision-constrained threshold reporting.")
+    parser.add_argument("--min-recall", type=float, default=0.30,
+                        help="Minimum recall floor for precision-constrained thresholds.")
+    parser.add_argument("--config", default=None,
+                        help="Path to a JSON config file. Values are used as defaults; "
+                             "explicit CLI flags always override config file values.")
     parser.add_argument("--stage1-only", action="store_true", help="Run only Stage 1.")
     parser.add_argument("--sweep", action="store_true", help="Run a small Stage 1 sweep and report best.")
     parser.add_argument("--sweep-bins", default="2,3", help="Comma-separated bins to try.")
@@ -152,6 +160,20 @@ def _parse_str_list(value):
 
 def main():
     args = build_arg_parser().parse_args()
+
+    # Load parameters from a JSON config file and override argparse defaults.
+    # CLI flags always win over config file values.
+    if getattr(args, "config", None):
+        import json as _json
+        with open(args.config) as _f:
+            cfg = _json.load(_f)
+        cli_provided = {a.dest for a in build_arg_parser()._actions
+                        if any(v in sys.argv for v in a.option_strings)}
+        for key, val in cfg.items():
+            dest = key.replace("-", "_")
+            if dest not in cli_provided and hasattr(args, dest):
+                setattr(args, dest, val)
+        print(f"Loaded config from: {args.config}")
 
     print("Loading dataset...")
     df = load_dataset(args)

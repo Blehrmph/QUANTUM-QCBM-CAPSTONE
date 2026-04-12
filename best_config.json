@@ -1,0 +1,44 @@
+{
+  "_comment": "Best Stage 1 configuration — ROC-AUC 0.9350 · PR-AUC 0.5230 · F1 0.6376 · FAR 7.6% · MCC 0.5945",
+  "_results": {
+    "roc_auc":  0.9350,
+    "pr_auc":   0.5230,
+    "f1":       0.6376,
+    "precision":0.5506,
+    "recall":   0.7573,
+    "far":      0.0765,
+    "mcc":      0.5945,
+    "at_10pct_far_recall": 0.806
+  },
+
+  "features": "sbytes,Sload,dbytes,Dload,Dpkts,is_not_tcp,is_int_state,is_con_state",
+
+  "optimizer":         "adam",
+  "adam_lr":           0.003,
+  "adam_beta1":        0.9,
+  "adam_beta2":        0.999,
+
+  "qcbm_iter":         1500,
+  "qcbm_layers":       3,
+  "qcbm_ensemble":     3,
+  "warmstart_layers":  true,
+
+  "n_bins":            4,
+  "bits_per_feature":  2,
+  "bin_strategy":      "quantile",
+  "encoding":          "binary",
+  "auto_mixed_precision": true,
+
+  "lambda_contrast":   0.5,
+  "contrast_margin":   10.0,
+  "laplace_alpha":     1.0,
+
+  "log1p":             true,
+  "scaler":            "standard",
+  "tail_percentile":   0.99,
+  "precision_targets": "0.65,0.70,0.75,0.80",
+  "min_recall":        0.30,
+  "test_frac":         0.2,
+  "val_frac":          0.1,
+  "seed":              42
+}
