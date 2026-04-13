@@ -1,17 +1,9 @@
 {
-  "_comment": "Best Stage 1 configuration — ROC-AUC 0.9398 · PR-AUC 0.5302 · F1 0.6376 · FAR 7.8% · MCC 0.6003 (alpha=0.5 from Laplace sweep)",
-  "_results": {
-    "roc_auc":  0.9398,
-    "pr_auc":   0.5302,
-    "f1":       0.6376,
-    "precision":0.5496,
-    "recall":   0.7714,
-    "far":      0.0782,
-    "mcc":      0.6003,
-    "at_10pct_far_recall": 0.806
-  },
+  "_comment": "Per-sample contrastive loss: penalise each unique anomaly bitstring individually via -log p(x) instead of KL(anomaly||model)",
+  "_base": "best_config.json",
 
   "features": "sbytes,Sload,dbytes,Dload,Dpkts,is_not_tcp,is_int_state,is_con_state",
+  "per_sample_contrast": true,
 
   "optimizer":         "adam",
   "adam_lr":           0.003,

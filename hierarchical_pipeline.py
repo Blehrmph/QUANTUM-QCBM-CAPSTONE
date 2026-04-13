@@ -32,7 +32,7 @@ def build_arg_parser():
     parser.add_argument("--scaler", choices=["standard", "minmax"], default="standard")
     parser.add_argument("--n-bins", type=int, default=2)
     parser.add_argument("--bits-per-feature", type=int, default=1)
-    parser.add_argument("--bin-strategy", choices=["quantile", "uniform"], default="quantile")
+    parser.add_argument("--bin-strategy", choices=["quantile", "uniform", "anomaly_aware"], default="quantile")
     parser.add_argument("--encoding", choices=["binary", "gray"], default="binary")
     parser.add_argument("--test-frac", type=float, default=0.2)
     parser.add_argument("--val-frac", type=float, default=0.1)
@@ -58,6 +58,9 @@ def build_arg_parser():
                         help="Apply Platt scaling to calibrate anomaly scores using validation labels.")
     parser.add_argument("--warmstart-layers", action="store_true", default=False,
                         help="Pre-train with n_layers-1 then expand to full depth (avoids barren plateaus).")
+    parser.add_argument("--per-sample-contrast", action="store_true", default=False,
+                        help="Use per-sample contrastive loss: penalise each unique anomaly bitstring "
+                             "individually via -log p(x) instead of KL(anomaly||model).")
     parser.add_argument("--hamming-smooth", action="store_true", default=False,
                         help="Replace unseen bitstrings with Hamming-nearest observed normal bitstring at scoring time.")
     parser.add_argument("--auto-mixed-precision", action="store_true", default=False,

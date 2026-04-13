@@ -242,8 +242,13 @@ def run_stage1(
     else:
         bits_map, bins_map = None, None
 
+    # Anomaly-aware binning: pass anomaly training samples so bin edges can be
+    # placed at midpoints between normal and anomaly quantiles per feature.
+    # Only activates when bin_strategy="anomaly_aware"; otherwise ignored.
+    _anomaly_mask_for_bins = (y_train.reset_index(drop=True).to_numpy() == 1)
+    X_train_anomaly_for_bins = X_train.iloc[_anomaly_mask_for_bins] if _anomaly_mask_for_bins.any() else None
     edges = fit_bins(X_train, features, n_bins=args.n_bins, strategy=args.bin_strategy,
-                     n_bins_map=bins_map)
+                     n_bins_map=bins_map, df_anomaly=X_train_anomaly_for_bins)
     btrain = transform_bins(X_train, edges)
     bval = transform_bins(X_val, edges)
     btest = transform_bins(X_test, edges)
@@ -315,6 +320,7 @@ def run_stage1(
             contrast_margin=args.contrast_margin,
             laplace_alpha=args.laplace_alpha,
             warmstart_layers=getattr(args, "warmstart_layers", False),
+            per_sample_contrast=getattr(args, "per_sample_contrast", False),
             optimizer=getattr(args, "optimizer", "spsa"),
             adam_lr=getattr(args, "adam_lr", 0.01),
             adam_beta1=getattr(args, "adam_beta1", 0.9),
@@ -389,6 +395,7 @@ def run_stage1(
                 contrast_margin=args.contrast_margin,
                 laplace_alpha=args.laplace_alpha,
                 warmstart_layers=getattr(args, "warmstart_layers", False),
+                per_sample_contrast=getattr(args, "per_sample_contrast", False),
                 optimizer=getattr(args, "optimizer", "spsa"),
                 adam_lr=getattr(args, "adam_lr", 0.01),
                 adam_beta1=getattr(args, "adam_beta1", 0.9),
@@ -572,17 +579,21 @@ def run_stage1(
             print(f"  {'TP':<12} {metrics_vote['tp']:>15d}         {metrics_youden.get('tp',0):>22d}")
             print(f"  {'FP':<12} {metrics_vote['fp']:>15d}         {metrics_youden.get('fp',0):>22d}")
 
-    # ── Two-stage Logistic Regression precision layer ────────────────────────
-    # Fit LR on val using per-model raw scores as features.
-    # This learns how model disagreements correlate with true anomalies,
-    # providing a calibrated precision layer with no QCBM retraining.
+    # ── Two-stage calibration layer (LR + Isotonic) ──────────────────────────
+    # Stage A: LogisticRegression on per-model raw scores (linear boundary)
+    # Stage B: IsotonicRegression on LR probabilities (non-parametric monotone)
+    # Both fit on val only — no QCBM retraining required.
     metrics_lr = None
+    metrics_isotonic = None
     lr_model = None
     if ensemble >= 1 and len(model_scores_val) == ensemble:
         try:
             from sklearn.linear_model import LogisticRegression
-            X_lr_val  = np.column_stack(model_scores_val)   # (N_val,  ensemble)
-            X_lr_test = np.column_stack(model_scores_test)  # (N_test, ensemble)
+            from sklearn.isotonic import IsotonicRegression
+            X_lr_val  = np.column_stack(model_scores_val)
+            X_lr_test = np.column_stack(model_scores_test)
+
+            # Stage A: LR calibration
             lr_model = LogisticRegression(C=1.0, solver="lbfgs", max_iter=1000,
                                           class_weight="balanced", random_state=42)
             lr_model.fit(X_lr_val, y_val.to_numpy())
@@ -591,22 +602,31 @@ def run_stage1(
             lr_t, _ = find_best_threshold(y_val.to_numpy(), lr_proba_val)
             metrics_lr = evaluate(y_test.to_numpy(), lr_proba_test, threshold=lr_t)
 
-            print(f"\n  Two-stage LR (QCBM scores -> LR calibration layer):")
-            print(f"  {'Metric':<12} {'LR-Calibrated':>15}   vs   {'Weighted Avg (F1-t)':>21}")
-            print(f"  {'-'*60}")
+            # Stage B: Isotonic calibration on top of LR probabilities
+            iso_cal = IsotonicRegression(out_of_bounds="clip")
+            iso_cal.fit(lr_proba_val, y_val.to_numpy())
+            iso_proba_val  = iso_cal.predict(lr_proba_val)
+            iso_proba_test = iso_cal.predict(lr_proba_test)
+            iso_t, _ = find_best_threshold(y_val.to_numpy(), iso_proba_val)
+            metrics_isotonic = evaluate(y_test.to_numpy(), iso_proba_test, threshold=iso_t)
+
+            print(f"\n  Two-stage calibration (LR + Isotonic):")
+            print(f"  {'Metric':<12} {'LR only':>12} {'LR+Isotonic':>14}   vs   {'F1-threshold':>14}")
+            print(f"  {'-'*65}")
             for key, label in [("roc_auc","ROC-AUC"), ("pr_auc","PR-AUC"), ("f1","F1"),
                                 ("precision","Precision"), ("recall_dr","Recall/DR"),
                                 ("far","FAR"), ("mcc","MCC")]:
                 v_lr  = metrics_lr.get(key, 0.0)
+                v_iso = metrics_isotonic.get(key, 0.0)
                 v_f1  = metrics_f1.get(key, 0.0)
-                delta = v_lr - v_f1
-                sign  = "+" if delta >= 0 else ""
-                print(f"  {label:<12} {v_lr:>15.4f}         {v_f1:>21.4f}  ({sign}{delta:.4f})")
-            if "tp" in metrics_lr:
-                print(f"  {'TP':<12} {metrics_lr['tp']:>15d}         {metrics_f1.get('tp',0):>21d}")
-                print(f"  {'FP':<12} {metrics_lr['fp']:>15d}         {metrics_f1.get('fp',0):>21d}")
+                d_iso = v_iso - v_f1
+                sign  = "+" if d_iso >= 0 else ""
+                print(f"  {label:<12} {v_lr:>12.4f} {v_iso:>14.4f}         {v_f1:>14.4f}  ({sign}{d_iso:.4f})")
+            if "tp" in metrics_isotonic:
+                print(f"  {'TP':<12} {metrics_lr.get('tp',0):>12d} {metrics_isotonic['tp']:>14d}         {metrics_f1.get('tp',0):>14d}")
+                print(f"  {'FP':<12} {metrics_lr.get('fp',0):>12d} {metrics_isotonic['fp']:>14d}         {metrics_f1.get('fp',0):>14d}")
         except Exception as e:
-            print(f"  Two-stage LR failed: {e}")
+            print(f"  Two-stage calibration failed: {e}")
 
     # ── Bitstring coverage analysis & FAR floor derivation ───────────────────
     try:
@@ -635,6 +655,8 @@ def run_stage1(
         stage1_metrics["majority_vote_metrics"] = metrics_vote
     if metrics_lr is not None:
         stage1_metrics["two_stage_lr_metrics"] = metrics_lr
+    if metrics_isotonic is not None:
+        stage1_metrics["isotonic_calibration_metrics"] = metrics_isotonic
     if coverage_stats is not None:
         stage1_metrics["bitstring_coverage"] = coverage_stats
     stage1_metrics["active_threshold"] = "youden"

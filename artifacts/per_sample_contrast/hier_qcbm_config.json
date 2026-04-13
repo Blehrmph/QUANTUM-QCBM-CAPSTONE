@@ -1,6 +1,6 @@
 {
   "n_qubits": 13,
-  "n_layers": 4,
+  "n_layers": 3,
   "max_iter": 1500,
   "seed": 42,
   "spsa_a": 0.2,
@@ -8,6 +8,7 @@
   "lambda_contrast": 0.5,
   "contrast_margin": 10.0,
   "laplace_alpha": 1.0,
+  "per_sample_contrast": false,
   "warmstart_layers": false,
   "use_rzz": false,
   "optimizer": "spsa",

@@ -18,6 +18,7 @@ class QCBMConfig:
     lambda_contrast: float = 0.5   # weight of contrastive term
     contrast_margin: float = 0.3   # min KL distance from anomaly distribution
     laplace_alpha: float = 1.0     # Laplace smoothing on empirical distribution
+    per_sample_contrast: bool = False  # per-bitstring contrastive instead of aggregate KL
     warmstart_layers: bool = False  # pre-train with n_layers-1, then expand
     use_rzz: bool = False           # parametrised RZZ entanglement instead of fixed CNOT
     optimizer: str = "spsa"         # "spsa" or "adam"
@@ -234,16 +235,27 @@ def _loss_from_dist(
     anomaly_dist: np.ndarray | None,
     lambda_contrast: float,
     contrast_margin: float,
+    anomaly_per_sample: np.ndarray | None = None,
 ) -> float:
     """Compute the QCBM loss given a pre-evaluated model probability distribution.
 
     Separates the cheap loss arithmetic from the expensive circuit simulation so
     that batched circuit results can be reused without re-running the simulator.
+
+    If anomaly_per_sample is provided (shape: n_unique_anomaly_bitstrings,),
+    uses per-sample contrastive loss: mean over individual bitstring log-prob penalties.
+    Otherwise uses aggregate KL(anomaly_dist || model).
     """
     loss = kl_divergence(data_dist, model_probs)
-    if anomaly_dist is not None and lambda_contrast > 0:
-        anom_kl = kl_divergence(anomaly_dist, model_probs)
-        loss += lambda_contrast * max(0.0, contrast_margin - anom_kl)
+    if lambda_contrast > 0:
+        if anomaly_per_sample is not None:
+            # Per-sample: penalise each unique anomaly bitstring individually
+            # score = -log p(x_anom); we want score >> margin -> p(x_anom) << exp(-margin)
+            scores = -np.log(np.clip(model_probs[anomaly_per_sample], 1e-12, 1.0))
+            loss += lambda_contrast * float(np.mean(np.maximum(0.0, contrast_margin - scores)))
+        elif anomaly_dist is not None:
+            anom_kl = kl_divergence(anomaly_dist, model_probs)
+            loss += lambda_contrast * max(0.0, contrast_margin - anom_kl)
     return loss
 
 
@@ -452,23 +464,32 @@ def train_qcbm(
 
     # Always build anomaly_dist for diagnostics; only use in loss if λ > 0
     anomaly_dist = None
+    anomaly_indices = None  # unique bitstring indices for per-sample contrastive
     _anomaly_dist_diag = None
     if anomaly_bitstrings is not None and len(anomaly_bitstrings) > 0:
         _anomaly_dist_diag = empirical_distribution(anomaly_bitstrings, n_qubits, alpha=config.laplace_alpha)
         if config.lambda_contrast > 0:
-            anomaly_dist = _anomaly_dist_diag
-            print(f"  Contrastive loss enabled  lambda={config.lambda_contrast}  margin={config.contrast_margin}")
+            if config.per_sample_contrast:
+                # Pre-compute unique anomaly bitstring indices once
+                anomaly_indices = np.unique(bitstrings_to_indices(anomaly_bitstrings))
+                print(f"  Per-sample contrastive loss  lambda={config.lambda_contrast}  "
+                      f"margin={config.contrast_margin}  unique_anomaly_bitstrings={len(anomaly_indices)}")
+            else:
+                anomaly_dist = _anomaly_dist_diag
+                print(f"  Contrastive loss enabled  lambda={config.lambda_contrast}  margin={config.contrast_margin}")
 
     rng = np.random.default_rng(config.seed)
     n_theta = n_params(n_qubits, config.n_layers, use_rzz=config.use_rzz)
 
-    # Warm-start: pre-train a shallower circuit, then expand to full depth
+    # Warm-start: chain-expand from 2 layers up to n_layers to avoid barren plateaus.
+    # For n_layers=3: 2->3.  For n_layers=4: 2->3->4 (chained).
     params_per_layer = n_qubits * 3 + (n_qubits if config.use_rzz else 0)
-    if config.warmstart_layers and config.n_layers > 1:
-        print(f"  Warm-start: pre-training {config.n_layers - 1} layers -> {config.n_layers} layers")
-        warm_config = QCBMConfig(
+
+    def _run_warm_stage(n_layers_warm, theta0_warm):
+        """Train a warm-start stage and return its best theta."""
+        wc = QCBMConfig(
             n_qubits=n_qubits,
-            n_layers=config.n_layers - 1,
+            n_layers=n_layers_warm,
             max_iter=config.max_iter // 3,
             seed=config.seed,
             spsa_a=config.spsa_a,
@@ -483,59 +504,53 @@ def train_qcbm(
             adam_beta1=config.adam_beta1,
             adam_beta2=config.adam_beta2,
         )
-        warm_n_theta = n_params(n_qubits, warm_config.n_layers, use_rzz=config.use_rzz)
-        warm_theta0 = rng.uniform(0, 2 * np.pi, size=warm_n_theta)
-
-        def warm_loss(theta: np.ndarray) -> float:
-            model_dist = qcbm_distribution(theta, warm_config)
-            return kl_divergence(data_dist, model_dist)
-
+        def _wloss(t):
+            return kl_divergence(data_dist, qcbm_distribution(t, wc))
         if config.optimizer == "adam":
-            warm_grad_fn = None
+            _wgrad = None
             if _get_aer_simulator() is not None:
-                warm_grad_fn = lambda t: compute_gradient_param_shift_batched(
-                    t, warm_config, data_dist, None, 0.0, warm_config.contrast_margin
+                _wgrad = lambda t: compute_gradient_param_shift_batched(
+                    t, wc, data_dist, None, 0.0, wc.contrast_margin
                 )
-            warm_theta, _ = adam_optimize(
-                warm_loss,
-                theta0=warm_theta0,
-                max_iter=warm_config.max_iter,
-                lr=config.adam_lr,
-                beta1=config.adam_beta1,
-                beta2=config.adam_beta2,
-                grad_fn=warm_grad_fn,
-            )
+            wt, _ = adam_optimize(_wloss, theta0=theta0_warm, max_iter=wc.max_iter,
+                                  lr=config.adam_lr, beta1=config.adam_beta1,
+                                  beta2=config.adam_beta2, grad_fn=_wgrad)
         else:
-            warm_theta, _ = spsa_optimize(
-                warm_loss,
-                theta0=warm_theta0,
-                max_iter=warm_config.max_iter,
-                a=warm_config.spsa_a,
-                c=warm_config.spsa_c,
-                seed=warm_config.seed,
-            )
-        # Expand: copy warm theta into first (n_layers-1) layers, randomly init new layer
-        theta0 = np.zeros(n_theta)
-        warm_layer_params = (config.n_layers - 1) * params_per_layer
-        theta0[:warm_layer_params] = warm_theta[:warm_layer_params]
-        theta0[warm_layer_params:warm_layer_params + params_per_layer] = rng.uniform(
-            0, 2 * np.pi, size=params_per_layer
+            wt, _ = spsa_optimize(_wloss, theta0=theta0_warm, max_iter=wc.max_iter,
+                                  a=wc.spsa_a, c=wc.spsa_c, seed=wc.seed)
+        return wt
+
+    def _expand_theta(warm_theta, from_layers, to_layers):
+        """Insert a randomly initialised layer after the existing layers."""
+        full = np.zeros(n_params(n_qubits, to_layers, use_rzz=config.use_rzz))
+        used = from_layers * params_per_layer
+        full[:used] = warm_theta[:used]
+        full[used:used + params_per_layer] = rng.uniform(0, 2 * np.pi, size=params_per_layer)
+        full[used + params_per_layer:] = warm_theta[used:]
+        return full
+
+    if config.warmstart_layers and config.n_layers > 1:
+        # Chain: 2 -> 3 -> ... -> n_layers
+        start_layers = min(2, config.n_layers - 1)
+        print(f"  Warm-start: pre-training {start_layers} layers", end="")
+        warm_theta = _run_warm_stage(
+            start_layers,
+            rng.uniform(0, 2 * np.pi, size=n_params(n_qubits, start_layers, use_rzz=config.use_rzz))
         )
-        # final RY from warm theta
-        theta0[warm_layer_params + params_per_layer:] = warm_theta[warm_layer_params:]
+        for intermediate in range(start_layers + 1, config.n_layers):
+            print(f" -> {intermediate}", end="", flush=True)
+            warm_theta = _expand_theta(warm_theta, intermediate - 1, intermediate)
+            warm_theta = _run_warm_stage(intermediate, warm_theta)
+        print(f" -> {config.n_layers} layers")
+        theta0 = _expand_theta(warm_theta, config.n_layers - 1, config.n_layers)
     else:
         theta0 = rng.uniform(0, 2 * np.pi, size=n_theta)
 
     def loss_fn(theta: np.ndarray) -> float:
         model_dist = qcbm_distribution(theta, config)
-        # KL divergence: mode-seeking, creates sharp concentrated distributions
-        # which is exactly what anomaly detection needs (low prob on unseen states)
-        loss = kl_divergence(data_dist, model_dist)
-        # Contrastive term: penalise if model is too close to anomaly distribution
-        if anomaly_dist is not None:
-            anom_kl = kl_divergence(anomaly_dist, model_dist)
-            loss += lambda_contrast * max(0.0, config.contrast_margin - anom_kl)
-        return loss
+        return _loss_from_dist(model_dist, data_dist, anomaly_dist,
+                               config.lambda_contrast, config.contrast_margin,
+                               anomaly_per_sample=anomaly_indices)
 
     if config.optimizer == "adam":
         print(f"  Optimizer: ADAM  lr={config.adam_lr}  beta1={config.adam_beta1}  beta2={config.adam_beta2}")

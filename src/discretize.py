@@ -25,17 +25,41 @@ def fit_bins(
     n_bins: int = 4,
     strategy: str = "quantile",
     n_bins_map: dict | None = None,
+    df_anomaly: pd.DataFrame | None = None,
 ) -> BinEdges:
     """Fit bin edges per column.
 
     n_bins_map: optional dict mapping column name -> n_bins override.
     Columns not in the map use the global n_bins default.
+
+    strategy="anomaly_aware": place bin edges at midpoints between normal and
+    anomaly distribution quantiles to maximise inter-class separation per feature.
+    Requires df_anomaly (anomaly training samples). Falls back to quantile if
+    df_anomaly is None or a feature has insufficient anomaly samples.
     """
     edges: dict[str, list[float]] = {}
     for c in columns:
         nb = n_bins_map.get(c, n_bins) if n_bins_map else n_bins
         values = df[c].to_numpy()
-        if strategy == "quantile":
+
+        if strategy == "anomaly_aware" and df_anomaly is not None and c in df_anomaly.columns:
+            anom_vals = df_anomaly[c].to_numpy()
+            if len(anom_vals) >= nb * 2:
+                # Compute quantile boundaries for both distributions
+                qs = np.linspace(0, 1, nb + 1)
+                normal_q = np.quantile(values, qs)
+                anomaly_q = np.quantile(anom_vals, qs)
+                # Midpoints between corresponding quantiles maximize separation
+                midpoints = 0.5 * (normal_q + anomaly_q)
+                bins = sorted(set(midpoints.tolist()))
+                if len(bins) >= 2:
+                    bins[0]  = -np.inf
+                    bins[-1] = np.inf
+                    edges[c] = bins
+                    continue
+            # fallthrough to quantile if anomaly data insufficient
+
+        if strategy in ("quantile", "anomaly_aware"):
             qs = np.linspace(0, 1, nb + 1)
             bins = np.quantile(values, qs).tolist()
         elif strategy == "uniform":
@@ -44,6 +68,7 @@ def fit_bins(
             bins = np.linspace(vmin, vmax, nb + 1).tolist()
         else:
             raise ValueError(f"Unknown binning strategy: {strategy}")
+
         bins = list(dict.fromkeys(bins))
         if len(bins) < 2:
             bins = [-np.inf, np.inf]

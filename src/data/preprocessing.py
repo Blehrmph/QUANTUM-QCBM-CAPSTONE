@@ -18,7 +18,7 @@ DEFAULT_FEATURES = [
     "tcprtt",
 ]
 
-DEFAULT_LOG1P_COLS = ["sbytes", "dbytes", "Sload", "Dload"]
+DEFAULT_LOG1P_COLS = ["sbytes", "dbytes", "Sload", "Dload", "byte_ratio", "load_ratio", "pkt_ratio"]
 
 
 @dataclass
@@ -79,15 +79,24 @@ class Scaler:
 
 
 def add_categorical_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Derive binary indicator columns from proto, state, and service.
+    """Derive binary indicator and interaction columns.
 
-    These features are far more discriminative than raw continuous traffic stats:
+    Binary indicators (from proto/state/service):
     - is_not_tcp  : non-TCP protocols (udp/rare) have higher attack rates
     - is_int_state: state=INT (incomplete connection) = 55% attack rate for UDP
-    - is_con_state: state=CON (established) = 0.1% attack rate — strongly normal
-    - is_ssh      : ssh service = 0% attack rate — perfect normal indicator
-    - is_dns      : dns service = 26.9% attack rate — strong attack indicator
-    - is_http     : http service = 9.1% attack rate — moderate attack indicator
+    - is_con_state: state=CON (established) = 0.1% attack rate -- strongly normal
+    - is_ssh      : ssh service = 0% attack rate -- perfect normal indicator
+    - is_dns      : dns service = 26.9% attack rate -- strong attack indicator
+    - is_http     : http service = 9.1% attack rate -- moderate attack indicator
+
+    Interaction features (domain-motivated ratios):
+    - byte_ratio  : sbytes / (dbytes + 1) -- traffic asymmetry; DoS/probe attacks
+                    are highly asymmetric (one-directional), normal traffic is not
+    - load_ratio  : Sload / (Dload + 1)  -- same asymmetry in load domain
+    - pkt_ratio   : Spkts / (Dpkts + 1)  -- packet-count asymmetry
+
+    These break the 99.95% bitstring overlap by creating new feature dimensions
+    that separate normal from anomaly traffic even within shared bitstring regions.
     """
     out = df.copy()
     if "proto" in df.columns:
@@ -99,6 +108,13 @@ def add_categorical_features(df: pd.DataFrame) -> pd.DataFrame:
         out["is_ssh"]  = (df["service"] == "ssh").astype(float)
         out["is_dns"]  = (df["service"] == "dns").astype(float)
         out["is_http"] = (df["service"] == "http").astype(float)
+    # Interaction / ratio features
+    if "sbytes" in df.columns and "dbytes" in df.columns:
+        out["byte_ratio"] = df["sbytes"] / (df["dbytes"].clip(lower=0) + 1.0)
+    if "Sload" in df.columns and "Dload" in df.columns:
+        out["load_ratio"] = df["Sload"] / (df["Dload"].clip(lower=0) + 1.0)
+    if "Spkts" in df.columns and "Dpkts" in df.columns:
+        out["pkt_ratio"]  = df["Spkts"] / (df["Dpkts"].clip(lower=0) + 1.0)
     return out
 
 
