@@ -6,12 +6,11 @@
 \toprule
 \textbf{Model} & \textbf{Train N} & \textbf{ROC-AUC} & \textbf{PR-AUC} & \textbf{Precision} & \textbf{Recall} & \textbf{FAR} & \textbf{MCC} \\
 \midrule
-\textbf{\textbf{QCBM (ours)}} & \textbf{1.58M} & \textbf{\textbf{0.9350}} & \textbf{\textbf{0.5230}} & \textbf{\textbf{0.5506}} & \textbf{0.7573} & \textbf{7.65\%} & \textbf{\textbf{0.5945}} \\
-Autoencoder (13$\to$6$\to$13) & 1.58M & 0.7611 & 0.2749 & 0.3099 & 0.8589 & 23.65\% & 0.4230 \\
-Isolation Forest & 1.58M & 0.4239 & 0.1420 & 0.1482 & 0.9999 & 71.10\% & 0.2069 \\
-RBM ($h$=5, $\sim$85 params)$\dagger$ & 50K & 0.4958 & 0.1194 & 0.1290 & 0.9528 & 79.57\% & 0.1261 \\
-RBM ($h$=26, 377 params)$\dagger$ & 50K & 0.3574 & 0.0876 & 0.1101 & 1.0000 & 99.99\% & 0.0031 \\
-KDE (bw=1.0)$\dagger$ & 50K & 0.4595 & 0.1552 & 0.1482 & 0.9999 & 71.08\% & 0.2070 \\
+\textbf{\textbf{QCBM (ours)}} & \textbf{1.58M} & \textbf{\textbf{0.9399}} & \textbf{\textbf{0.5318}} & \textbf{\textbf{0.5136}} & \textbf{0.8884} & \textbf{10.41\%} & \textbf{\textbf{0.6252}} \\
+Isolation Forest$\dagger$ & — & 0.4239 & 0.1420 & 0.1482 & 0.9999 & 71.10\% & 0.2069 \\
+RBM ($h$=5, $\sim$85 params)$\dagger$ & — & 0.4663 & 0.1076 & 0.1246 & 0.9634 & 83.72\% & 0.1110 \\
+RBM ($h$=26, 377 params)$\dagger$ & — & 0.3983 & 0.0901 & 0.1220 & 0.9935 & 88.41\% & 0.1123 \\
+KDE (bw=1.0)$\dagger$ & — & 0.4915 & 0.1614 & 0.1561 & 0.9999 & 66.88\% & 0.2273 \\
 \bottomrule
 \end{tabular}
 \end{table}

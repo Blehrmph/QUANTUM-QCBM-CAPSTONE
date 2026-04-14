@@ -1,17 +1,35 @@
 {
-  "_comment": "Best Stage 1 configuration — ROC-AUC 0.9398 · PR-AUC 0.5302 · F1 0.6376 · FAR 7.8% · MCC 0.6003 (alpha=0.5 from Laplace sweep)",
+  "_comment": "Best configuration — anomaly-aware binning + alpha=0.5 | ROC-AUC 0.9395 · PR-AUC 0.7813 · F1 0.7708 · Prec 94.6% · FAR 0.46% · MCC 0.7643 (isotonic calibration threshold)",
   "_results": {
-    "roc_auc":  0.9398,
-    "pr_auc":   0.5302,
-    "f1":       0.6376,
-    "precision":0.5496,
-    "recall":   0.7714,
-    "far":      0.0782,
-    "mcc":      0.6003,
-    "at_10pct_far_recall": 0.806
+    "roc_auc":   0.9395,
+    "pr_auc":    0.7813,
+    "f1":        0.7708,
+    "precision": 0.9463,
+    "recall":    0.6503,
+    "far":       0.0046,
+    "mcc":       0.7643,
+    "at_1pct_far_recall": 0.658,
+    "f1_threshold": {
+      "f1":       0.7778,
+      "precision":0.9788,
+      "recall":   0.6453,
+      "far":      0.0017,
+      "mcc":      0.7764
+    },
+    "prior_best_quantile_binning": {
+      "_comment": "Previous best before anomaly-aware binning",
+      "roc_auc":  0.9398,
+      "pr_auc":   0.5302,
+      "f1":       0.6376,
+      "precision":0.5496,
+      "recall":   0.7714,
+      "far":      0.0782,
+      "mcc":      0.6003
+    }
   },
 
   "features": "sbytes,Sload,dbytes,Dload,Dpkts,is_not_tcp,is_int_state,is_con_state",
+  "bin_strategy": "anomaly_aware",
 
   "optimizer":         "adam",
   "adam_lr":           0.003,
@@ -25,7 +43,6 @@
 
   "n_bins":            4,
   "bits_per_feature":  2,
-  "bin_strategy":      "quantile",
   "encoding":          "binary",
   "auto_mixed_precision": true,
 

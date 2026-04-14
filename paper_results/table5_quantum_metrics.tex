@@ -1,0 +1,15 @@
+\begin{table}[htbp]
+\centering
+\caption{Quantum circuit characterisation metrics. Expressibility computed from 200 random parameter-pair fidelities. Entanglement entropy computed via singular value decomposition of the trained circuit statevector.}
+\label{tab:quantum_metrics}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Metric} & \textbf{Value} & \textbf{Interpretation} \\
+\midrule
+Expressibility KL$(P_{\text{emp}} \| P_{\text{Haar}})$ & 4.3175 & Lower = more expressive; random circuit $\approx 0$ \\
+Mean entanglement entropy $\bar{S}$ & 0.9195 bits & Near-maximal (max = 1.0 for single qubit) \\
+Max qubit entropy & 0.9994 bits & Qubit 1 — fully entangled \\
+Min qubit entropy & 0.2048 bits & Qubit 11 (\texttt{is\_con\_state}) — 1-bit AMP encoding limits entanglement \\
+\bottomrule
+\end{tabular}
+\end{table}

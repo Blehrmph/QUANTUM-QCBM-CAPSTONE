@@ -1,0 +1,15 @@
+\begin{table}[htbp]
+\centering
+\caption{Laplace smoothing ablation. Higher $\alpha$ increases probability mass assigned to unseen bitstrings, directly reducing the FAR floor at the cost of weaker anomaly discrimination.}
+\label{tab:laplace_sweep}
+\begin{tabular}{lrrrrrrr}
+\toprule
+\textbf{$\alpha$} & \textbf{ROC-AUC} & \textbf{PR-AUC} & \textbf{Precision} & \textbf{Recall} & \textbf{FAR} & \textbf{FAR Floor} & \textbf{MCC} \\
+\midrule
+\textbf{0.5} & \textbf{0.9398} & \textbf{0.5302} & \textbf{0.5496} & \textbf{0.7714} & \textbf{7.82\%} & \textbf{0.00\%} & \textbf{0.6003} \\
+1.0 & 0.9350 & 0.5230 & 0.5506 & 0.7573 & 7.65\% & 0.00\% & 0.5945 \\
+2.0 & 0.9332 & 0.5204 & 0.5506 & 0.7573 & 7.65\% & 0.00\% & 0.5945 \\
+3.0 & 0.9323 & 0.5189 & 0.5451 & 0.7732 & 7.98\% & 0.00\% & 0.5979 \\
+\bottomrule
+\end{tabular}
+\end{table}
