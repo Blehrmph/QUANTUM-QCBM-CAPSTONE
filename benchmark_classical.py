@@ -407,7 +407,7 @@ def main():
     )
 
     print("\n[3/4] Loading QCBM metrics...")
-    qcbm_metrics_path = Path("artifacts/hier_stage1_metrics.json")
+    qcbm_metrics_path = Path("artifacts/anomaly_binning/hier_stage1_metrics.json")
     with open(qcbm_metrics_path) as f:
         qcbm_metrics = json.load(f)
     qcbm_roc = qcbm_metrics.get("roc_auc", 0.9350)
@@ -420,8 +420,8 @@ def main():
         print("\n[4/4] Quantum metrics (no retraining)...")
         try:
             expr_kl, fidelities, ent = run_quantum_metrics(
-                theta_path="artifacts/hier_qcbm_theta.npy",
-                config_path="artifacts/hier_qcbm_config.json",
+                theta_path="artifacts/anomaly_binning/hier_qcbm_theta.npy",
+                config_path="artifacts/anomaly_binning/hier_qcbm_config.json",
                 n_expr_samples=args_cli.expr_samples,
             )
         except Exception as e:
