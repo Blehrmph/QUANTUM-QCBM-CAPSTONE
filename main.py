@@ -397,7 +397,7 @@ def main():
         print("Stage 1 complete.")
         return
 
-    stage2_model, _, y_train_cat_clean = run_stage2(
+    stage2_model, _, y_train_cat_clean, e2e_metrics = run_stage2(
         X_train,
         X_test,
         splits.y_train,
@@ -439,6 +439,8 @@ def main():
     (out_dir / "hier_scaler.json").write_text(json.dumps(scaler.to_dict(), indent=2))
     (out_dir / "hier_features.json").write_text(json.dumps({"features": features}, indent=2))
     save_stage1_artifacts(out_dir, stage1_out)
+    if e2e_metrics is not None:
+        (out_dir / "e2e_metrics.json").write_text(json.dumps(e2e_metrics, indent=2))
 
     print("Pipeline complete.")
 
