@@ -1,0 +1,34 @@
+{
+  "_comment": "Recall-boost test: contrast_margin 10→15 + lambda 0.5→0.8 to reactivate contrastive loss on all 3 ensemble models (models 2/3 had anomaly_kl>10, contrastive was inactive)",
+
+  "features": "sbytes,Sload,dbytes,Dload,Dpkts,is_not_tcp,is_int_state,is_con_state",
+  "bin_strategy": "anomaly_aware",
+
+  "optimizer":         "adam",
+  "adam_lr":           0.003,
+  "adam_beta1":        0.9,
+  "adam_beta2":        0.999,
+
+  "qcbm_iter":         1500,
+  "qcbm_layers":       3,
+  "qcbm_ensemble":     3,
+  "warmstart_layers":  true,
+
+  "n_bins":            4,
+  "bits_per_feature":  2,
+  "encoding":          "binary",
+  "auto_mixed_precision": true,
+
+  "lambda_contrast":   0.8,
+  "contrast_margin":   15.0,
+  "laplace_alpha":     0.5,
+
+  "log1p":             true,
+  "scaler":            "standard",
+  "tail_percentile":   0.99,
+  "precision_targets": "0.65,0.70,0.75,0.80",
+  "min_recall":        0.30,
+  "test_frac":         0.2,
+  "val_frac":          0.1,
+  "seed":              42
+}
