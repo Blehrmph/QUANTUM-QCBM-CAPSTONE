@@ -1,0 +1,62 @@
+[
+  {
+    "label": "Ideal (no noise)",
+    "p_depol": 0.0,
+    "p_readout": 0.0,
+    "metrics": {
+      "roc_auc": 0.9955,
+      "f1": 0.9156,
+      "precision": 0.9202,
+      "recall": 0.911,
+      "far": 0.0079
+    }
+  },
+  {
+    "label": "Low noise (NISQ near-term)",
+    "p_depol": 0.001,
+    "p_readout": 0.005,
+    "metrics": {
+      "roc_auc": 0.995,
+      "f1": 0.9136,
+      "precision": 0.9182,
+      "recall": 0.909,
+      "far": 0.0081
+    }
+  },
+  {
+    "label": "Medium noise (IBM ~2023)",
+    "p_depol": 0.003,
+    "p_readout": 0.01,
+    "metrics": {
+      "roc_auc": 0.9943,
+      "f1": 0.9015,
+      "precision": 0.9061,
+      "recall": 0.897,
+      "far": 0.0093
+    }
+  },
+  {
+    "label": "High noise",
+    "p_depol": 0.005,
+    "p_readout": 0.015,
+    "metrics": {
+      "roc_auc": 0.9935,
+      "f1": 0.8894,
+      "precision": 0.8939,
+      "recall": 0.885,
+      "far": 0.0105
+    }
+  },
+  {
+    "label": "Very high noise",
+    "p_depol": 0.01,
+    "p_readout": 0.02,
+    "metrics": {
+      "roc_auc": 0.9924,
+      "f1": 0.8794,
+      "precision": 0.8838,
+      "recall": 0.875,
+      "far": 0.0115
+    }
+  }
+]

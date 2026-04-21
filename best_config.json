@@ -1,20 +1,32 @@
 {
-  "_comment": "Best configuration — anomaly-aware binning + stronger contrastive (lambda=0.8, margin=15) | ROC-AUC 0.9434 · PR-AUC 0.7952 · F1 0.7729 · Prec 97.7% · FAR 0.18% · MCC 0.7718 (LR+Isotonic threshold)",
+  "_comment": "Best configuration — 15q (9 features incl. sttl) + anomaly-aware binning + contrastive (lambda=0.8, margin=15) + ensemble=5 | ROC-AUC 0.9671 · PR-AUC 0.8931 · F1 0.9015 · Recall 90.8% · FAR 1.31% · MCC 0.8893 (LR+Isotonic threshold)",
   "_results": {
-    "roc_auc":   0.9434,
-    "pr_auc":    0.7952,
-    "f1":        0.7729,
-    "precision": 0.9772,
-    "recall":    0.6393,
-    "far":       0.0018,
-    "mcc":       0.7718,
-    "at_1pct_far_recall": 0.658,
+    "roc_auc":   0.9671,
+    "pr_auc":    0.8931,
+    "f1":        0.9015,
+    "precision": 0.8952,
+    "recall":    0.9080,
+    "far":       0.0131,
+    "mcc":       0.8893,
+    "at_1pct_far_recall": 0.836,
     "f1_threshold": {
-      "f1":       0.7823,
-      "precision":0.9737,
-      "recall":   0.6538,
-      "far":      0.0022,
-      "mcc":      0.7795
+      "roc_auc":  0.9616,
+      "pr_auc":   0.9080,
+      "f1":       0.8830,
+      "precision":0.9384,
+      "recall":   0.8339,
+      "far":      0.0068,
+      "mcc":      0.8714
+    },
+    "prior_best_8feat_13q": {
+      "_comment": "Before adding sttl — lambda=0.8, margin=15, 13q, ensemble=5",
+      "roc_auc":  0.9434,
+      "pr_auc":   0.7952,
+      "f1":       0.7729,
+      "precision":0.9772,
+      "recall":   0.6393,
+      "far":      0.0018,
+      "mcc":      0.7718
     },
     "prior_best_margin10": {
       "_comment": "Previous best — lambda=0.5, margin=10",
@@ -38,7 +50,9 @@
     }
   },
 
-  "features": "sbytes,Sload,dbytes,Dload,Dpkts,is_not_tcp,is_int_state,is_con_state",
+  "input": "datasets/UNSW-NB15_cleaned.csv",
+  "features": "sbytes,Sload,dbytes,Dload,Dpkts,is_not_tcp,is_int_state,is_con_state,sttl",
+  "mi_top_k": 0,
   "bin_strategy": "anomaly_aware",
 
   "optimizer":         "adam",
@@ -48,7 +62,7 @@
 
   "qcbm_iter":         1500,
   "qcbm_layers":       3,
-  "qcbm_ensemble":     3,
+  "qcbm_ensemble":     5,
   "warmstart_layers":  true,
 
   "n_bins":            4,

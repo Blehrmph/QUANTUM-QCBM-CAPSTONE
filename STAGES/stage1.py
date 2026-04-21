@@ -639,13 +639,13 @@ def run_stage1(
         coverage_stats = None
         print(f"  Coverage analysis failed: {e}")
 
-    # Use Youden threshold for downstream stages -- better DR/FAR tradeoff for IDS
-    pred_anom_train = train_scores_z >= youden_t
-    pred_anom_test  = test_scores_z  >= youden_t
+    # Use F1-threshold for downstream stages -- maximises precision/FAR for Stage 2/3 e2e quality
+    pred_anom_train = train_scores_z >= f1_t
+    pred_anom_test  = test_scores_z  >= f1_t
 
     # Save all metric sets; mark which threshold was used for predictions
-    stage1_metrics = metrics_youden
-    stage1_metrics["f1_threshold_metrics"] = metrics_f1
+    stage1_metrics = dict(metrics_f1)
+    stage1_metrics["f1_threshold_metrics"] = dict(metrics_f1)
     stage1_metrics["val_youden_metrics"] = val_metrics_youden
     stage1_metrics["val_f1_metrics"] = val_metrics_f1
     stage1_metrics["far_constrained_metrics"] = {
@@ -659,7 +659,7 @@ def run_stage1(
         stage1_metrics["isotonic_calibration_metrics"] = metrics_isotonic
     if coverage_stats is not None:
         stage1_metrics["bitstring_coverage"] = coverage_stats
-    stage1_metrics["active_threshold"] = "youden"
+    stage1_metrics["active_threshold"] = "f1"
 
     return {
         "edges": edges,
@@ -678,7 +678,7 @@ def run_stage1(
         "stage1_metrics": stage1_metrics,
         "pred_anom_train": pred_anom_train,
         "pred_anom_test": pred_anom_test,
-        "best_threshold": youden_t,
+        "best_threshold": f1_t,
     }
 
 

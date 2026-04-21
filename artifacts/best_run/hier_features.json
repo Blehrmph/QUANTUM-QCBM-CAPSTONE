@@ -5,8 +5,9 @@
     "dbytes",
     "Dload",
     "Dpkts",
-    "is_int_state",
     "is_not_tcp",
-    "is_con_state"
+    "is_int_state",
+    "is_con_state",
+    "sttl"
   ]
 }

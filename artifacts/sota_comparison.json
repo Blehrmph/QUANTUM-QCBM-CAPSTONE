@@ -1,0 +1,124 @@
+[
+  {
+    "method": "Random Forest (Kasongo & Sun)",
+    "year": 2020,
+    "type": "Supervised",
+    "roc_auc": null,
+    "f1": 0.9946,
+    "precision": 0.995,
+    "recall": 0.9942,
+    "far": null,
+    "note": "Full feature set, 49 features"
+  },
+  {
+    "method": "XGBoost (MDPI Algorithms 2024)",
+    "year": 2024,
+    "type": "Supervised",
+    "roc_auc": 0.9993,
+    "f1": 0.995,
+    "precision": 0.9945,
+    "recall": 0.9955,
+    "far": null,
+    "note": "Feature selection + XGBoost"
+  },
+  {
+    "method": "CNN-LSTM (JCBI 2024)",
+    "year": 2024,
+    "type": "Supervised",
+    "roc_auc": null,
+    "f1": 0.96,
+    "precision": 0.96,
+    "recall": 0.9678,
+    "far": null,
+    "note": "Hybrid deep learning"
+  },
+  {
+    "method": "Ensemble BB+XGBoost+RF (2024)",
+    "year": 2024,
+    "type": "Supervised",
+    "roc_auc": null,
+    "f1": null,
+    "precision": 0.9826,
+    "recall": 0.978,
+    "far": null,
+    "note": "Grid-search tuned ensemble"
+  },
+  {
+    "method": "GCN-LOF (Unsupervised, 2023)",
+    "year": 2023,
+    "type": "Unsupervised",
+    "roc_auc": null,
+    "f1": 0.964,
+    "precision": null,
+    "recall": null,
+    "far": null,
+    "note": "Graph+LOF, no attack labels"
+  },
+  {
+    "method": "QNN on IonQ hardware (2021)",
+    "year": 2021,
+    "type": "Quantum",
+    "roc_auc": null,
+    "f1": 0.86,
+    "precision": null,
+    "recall": null,
+    "far": null,
+    "note": "Real quantum hardware, NF-UNSW-NB15"
+  },
+  {
+    "method": "IsoForest [quantile bins]",
+    "year": null,
+    "type": "Unsupervised",
+    "roc_auc": 0.4239,
+    "f1": 0.2581,
+    "precision": 0.1482,
+    "recall": 0.9999,
+    "far": 0.711,
+    "note": "Our ablation"
+  },
+  {
+    "method": "Autoencoder [quantile bins]",
+    "year": null,
+    "type": "Unsupervised",
+    "roc_auc": 0.7611,
+    "f1": 0.4555,
+    "precision": 0.3099,
+    "recall": 0.8589,
+    "far": 0.2365,
+    "note": "Our ablation"
+  },
+  {
+    "method": "KDE [anomaly-aware bins]",
+    "year": null,
+    "type": "Unsupervised",
+    "roc_auc": 0.9191,
+    "f1": 0.7602,
+    "precision": 0.8496,
+    "recall": 0.6878,
+    "far": 0.0151,
+    "note": "Our ablation - best classical, same bins"
+  },
+  {
+    "method": "IsoForest [anomaly-aware bins]",
+    "year": null,
+    "type": "Unsupervised",
+    "roc_auc": 0.8997,
+    "f1": 0.741,
+    "precision": 0.8193,
+    "recall": 0.6764,
+    "far": 0.0185,
+    "note": "Our ablation"
+  },
+  {
+    "method": "QCBM (This work) [anomaly-aware]",
+    "year": 2024,
+    "type": "Quantum-Unsupervised",
+    "roc_auc": 0.9434,
+    "f1": 0.7729,
+    "precision": 0.9772,
+    "recall": 0.6393,
+    "far": 0.0018,
+    "note": "13q\u00e2\u2020\u201919q QCBM, contrastive loss, LR+Isotonic threshold",
+    "this_work": true
+  }
+]
