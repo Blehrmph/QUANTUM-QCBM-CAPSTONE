@@ -453,8 +453,8 @@ def make_figures(s1_metrics: dict, cmp: dict, qm: dict | None,
         ax2 = axes5[1]
         ax2.set_facecolor("#f9f9f9")
         ax2.spines[["top","right"]].set_visible(False)
-        total_fp       = 34559   # from F1-threshold operating point
-        unseen_fp      = coverage["far_floor_n_samples"]   # 11
+        total_fp       = coverage.get("fp_f1_threshold", 3062)
+        unseen_fp      = coverage["far_floor_n_samples"]
         score_overlap  = total_fp - unseen_fp
         categories = ["Total FP", "Score-overlap FP\n(contrastive effect)",
                       "Unseen-bitstring FP\n(coverage gap)"]

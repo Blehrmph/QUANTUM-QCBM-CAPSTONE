@@ -1,0 +1,9 @@
+{
+  "n_total_attacks": 55911,
+  "n_s1_flagged": 49685,
+  "n_s1_true_positive": 46623,
+  "s1_recall": 0.833879,
+  "s2_accuracy_given_s1_tp": 0.88347,
+  "e2e_recall": 0.736707,
+  "e2e_precision": 0.829023
+}

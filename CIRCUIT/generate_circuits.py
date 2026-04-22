@@ -2,18 +2,19 @@
 CIRCUIT/generate_circuits.py  —  Generate final QCBM circuit diagram
 
 Final configuration:
-  - 13 qubits (Auto Mixed Precision)
+  - 15 qubits (Auto Mixed Precision)
       q0-q1   : sbytes   (2 bits / 4 bins)
       q2-q3   : Sload    (2 bits / 4 bins)
       q4-q5   : dbytes   (2 bits / 4 bins)
       q6-q7   : Dload    (2 bits / 4 bins)
       q8-q9   : Dpkts    (2 bits / 4 bins)
-      q10     : is_int_state  (1 bit / 2 bins)
-      q11     : is_not_tcp    (1 bit / 2 bins)
-      q12     : is_con_state  (1 bit / 2 bins)
+      q10-q11 : sttl     (2 bits / 4 bins)
+      q12     : is_not_tcp    (1 bit / 2 bins)
+      q13     : is_int_state  (1 bit / 2 bins)
+      q14     : is_con_state  (1 bit / 2 bins)
   - 3 layers: RZ-RY-RZ per qubit + circular CNOT entanglement
-  - Anomaly-aware binning + contrastive loss (lambda=0.5, margin=10)
-  - ADAM lr=0.003, 1500 iterations, ensemble=3, warm-start 2->3
+  - Anomaly-aware binning + contrastive loss (lambda=0.8, margin=15)
+  - ADAM lr=0.003, 1500 iterations, ensemble=5, warm-start 2->3
 
 Usage:
     python CIRCUIT/generate_circuits.py
@@ -33,7 +34,7 @@ from qiskit import QuantumCircuit
 
 OUT = os.path.dirname(os.path.abspath(__file__))
 
-N_QUBITS = 13
+N_QUBITS = 15
 N_LAYERS = 3
 
 QUBIT_LABELS = [
@@ -42,12 +43,13 @@ QUBIT_LABELS = [
     "dbytes[0]", "dbytes[1]",
     "Dload[0]",  "Dload[1]",
     "Dpkts[0]",  "Dpkts[1]",
-    "is_int_st", "is_!tcp",  "is_con_st",
+    "sttl[0]",   "sttl[1]",
+    "is_!tcp",   "is_int_st", "is_con_st",
 ]
 
 
 def build_final_circuit(param_val: float = 0.3) -> QuantumCircuit:
-    """Build the final 13-qubit, 3-layer QCBM ansatz for visualisation."""
+    """Build the final 15-qubit, 3-layer QCBM ansatz for visualisation."""
     n = N_QUBITS
     qc = QuantumCircuit(n)
 
@@ -88,17 +90,17 @@ def generate():
     )
 
     fig.suptitle(
-        "Final QCBM Ansatz — 13 Qubits · 3 Layers · Circular CNOT",
+        "Final QCBM Ansatz — 15 Qubits · 3 Layers · Circular CNOT",
         fontsize=13, fontweight="bold", y=1.02,
     )
 
     subtitle_lines = (
-        "Auto Mixed Precision: continuous features → 2 bits/4 bins  |  "
-        "binary flags → 1 bit/2 bins  |  13 qubits / 8,192 states\n"
-        "Loss = KL(normal ‖ model) + 0.5 · max(0, 10 − KL(anomaly ‖ model))  |  "
-        "Anomaly-aware binning  |  ADAM lr=3e-3 · 1500 iter · ensemble=3 · warm-start 2→3\n"
-        "Best results:  ROC-AUC 0.9395  ·  PR-AUC 0.7813  ·  F1 0.7708  ·  "
-        "Precision 94.6%  ·  FAR 0.46%  ·  MCC 0.7643"
+        "Auto Mixed Precision: continuous features (incl. sttl) -> 2 bits/4 bins  |  "
+        "binary flags -> 1 bit/2 bins  |  15 qubits / 32,768 states\n"
+        "Loss = KL(normal || model) + 0.8 * max(0, 15 - KL(anomaly || model))  |  "
+        "Anomaly-aware binning  |  ADAM lr=3e-3  1500 iter  ensemble=5  warm-start 2->3\n"
+        "Best results (LR+Isotonic):  ROC-AUC 0.9671  PR-AUC 0.8931  F1 0.9015  "
+        "Recall 90.8%  FAR 1.31%  MCC 0.8893"
     )
     fig.text(0.5, -0.04, subtitle_lines, ha="center", fontsize=8.5,
              style="italic", color="#333333")
