@@ -172,6 +172,94 @@ def qcbm_distribution_batch(thetas: list, config: QCBMConfig) -> np.ndarray:
         return np.stack([qcbm_distribution(theta, config) for theta in thetas])
 
 
+def qcbm_distribution_ibm(
+    theta: np.ndarray,
+    config: QCBMConfig,
+    shots: int = 32768,
+    backend_name: str | None = None,
+    token: str | None = None,
+) -> np.ndarray:
+    """Run QCBM circuit on real IBM quantum hardware using shot sampling.
+
+    Parameters
+    ----------
+    theta : np.ndarray
+        Trained circuit parameters (load from artifacts/hier_qcbm_theta.npy).
+    config : QCBMConfig
+        QCBM configuration — must match the config used during training.
+    shots : int
+        Measurement shots. 32768 recommended for 15-qubit circuits; higher gives
+        better probability estimates but costs more queue time.
+    backend_name : str, optional
+        Specific IBM backend (e.g. 'ibm_brisbane'). None = least_busy device
+        with >= n_qubits qubits.
+    token : str, optional
+        IBM Quantum API token. Resolved in order: explicit arg → IBM_QUANTUM_TOKEN
+        env var → previously saved account (QiskitRuntimeService.save_account).
+
+    Returns
+    -------
+    np.ndarray, shape (2**n_qubits,)
+        Shot-estimated probability distribution. Sums to 1.0.
+    """
+    import os
+
+    try:
+        from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as Sampler
+        from qiskit import transpile
+    except ImportError as exc:
+        raise ImportError(
+            "qiskit-ibm-runtime is required for IBM hardware. "
+            "Install with: pip install qiskit-ibm-runtime"
+        ) from exc
+
+    resolved_token = token or os.environ.get("IBM_QUANTUM_TOKEN")
+    if resolved_token:
+        service = QiskitRuntimeService(channel="ibm_quantum", token=resolved_token)
+    else:
+        # Falls back to account saved via QiskitRuntimeService.save_account()
+        service = QiskitRuntimeService(channel="ibm_quantum")
+
+    if backend_name:
+        backend = service.backend(backend_name)
+    else:
+        backend = service.least_busy(
+            operational=True,
+            simulator=False,
+            min_num_qubits=config.n_qubits,
+        )
+    print(f"  [IBM] Backend  : {backend.name}  ({backend.num_qubits} qubits)")
+
+    qc = build_ansatz(
+        config.n_qubits, config.n_layers, theta,
+        use_rzz=config.use_rzz,
+        entanglement_pairs=config.entanglement_pairs,
+    )
+    qc.measure_all()
+
+    qc_t = transpile(qc, backend=backend, optimization_level=3)
+    print(f"  [IBM] Depth after transpilation : {qc_t.depth()} gates")
+    print(f"  [IBM] Submitting {shots}-shot job...")
+
+    sampler = Sampler(mode=backend)
+    job = sampler.run([qc_t], shots=shots)
+    print(f"  [IBM] Job ID   : {job.job_id()}")
+    print(f"  [IBM] Waiting for result (queue times vary — check status at quantum.ibm.com)...")
+
+    result = job.result()
+    counts = result[0].data.meas.get_counts()
+
+    # SamplerV2 BitArray returns bitstrings with bit 0 at the LEFT (little-endian).
+    # Reverse each string so it aligns with Qiskit statevector ordering (bit 0 at right).
+    n_states = 2 ** config.n_qubits
+    probs = np.zeros(n_states)
+    for bitstring, count in counts.items():
+        cleaned = bitstring.replace(" ", "")
+        idx = int(cleaned[::-1], 2)
+        probs[idx] = count / shots
+    return probs
+
+
 def empirical_distribution(
     bitstrings: np.ndarray,
     n_qubits: int,
