@@ -65,6 +65,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print available IBM backends and exit (no job submitted).",
     )
     p.add_argument(
+        "--ensemble-member", type=int, default=None,
+        help="Run only this ensemble member index (0-based). "
+             "Omit to run all members and average (default behaviour).",
+    )
+    p.add_argument(
         "--output", default=None,
         help="JSON file to save results (default: <artifact-dir>/ibm_results.json).",
     )
@@ -134,9 +139,9 @@ def list_backends(token: str | None) -> None:
         sys.exit("ERROR: qiskit-ibm-runtime not installed. Run: pip install qiskit-ibm-runtime")
 
     if token:
-        service = QiskitRuntimeService(channel="ibm_quantum", token=token)
+        service = QiskitRuntimeService(channel="ibm_quantum_platform", token=token)
     else:
-        service = QiskitRuntimeService(channel="ibm_quantum")
+        service = QiskitRuntimeService(channel="ibm_quantum_platform")
 
     backends = service.backends(operational=True, simulator=False)
     print(f"\n{'Backend':<25} {'Qubits':>6}  {'Status'}")
@@ -196,7 +201,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     print(f"Loading artifacts from: {args.artifact_dir}")
     theta, config_dict = load_artifacts(args.artifact_dir)
-    sim_dist = load_simulator_dist(args.artifact_dir)
+    sim_dist_raw = load_simulator_dist(args.artifact_dir)
 
     from src.qcbm_train import QCBMConfig, qcbm_distribution_ibm
 
@@ -207,23 +212,54 @@ def main() -> None:
         entanglement_pairs=config_dict.get("entanglement_pairs"),
     )
 
+    # theta may be 1D (single model) or 2D (ensemble), shape (n_members, n_params)
+    is_ensemble = theta.ndim == 2
+    if is_ensemble:
+        n_members = theta.shape[0]
+        n_params_each = theta.shape[1]
+        if args.ensemble_member is not None:
+            if not (0 <= args.ensemble_member < n_members):
+                sys.exit(f"ERROR: --ensemble-member must be 0..{n_members - 1}")
+            theta_list = [theta[args.ensemble_member]]
+            print(f"\nEnsemble: running member {args.ensemble_member} only (of {n_members})")
+        else:
+            theta_list = [theta[i] for i in range(n_members)]
+            print(f"\nEnsemble: {n_members} members — will run all and average distributions")
+    else:
+        theta_list = [theta]
+        n_params_each = len(theta)
+        print()
+
+    # Average ensemble simulator baseline if needed
+    if sim_dist_raw is not None and sim_dist_raw.ndim == 2:
+        sim_dist = sim_dist_raw.mean(axis=0)
+    else:
+        sim_dist = sim_dist_raw
+
     print(
-        f"\nCircuit: {config.n_qubits} qubits  |  {config.n_layers} layers  |  "
-        f"{len(theta)} parameters"
+        f"Circuit: {config.n_qubits} qubits  |  {config.n_layers} layers  |  "
+        f"{n_params_each} parameters per member"
     )
     print(f"Shots  : {args.shots:,}")
     print(f"Backend: {args.backend or 'least-busy'}\n")
 
     # ------------------------------------------------------------------
-    # Run on IBM hardware
+    # Run on IBM hardware — one job per ensemble member, then average
     # ------------------------------------------------------------------
-    ibm_dist = qcbm_distribution_ibm(
-        theta,
-        config,
-        shots=args.shots,
-        backend_name=args.backend,
-        token=token,
-    )
+    member_dists = []
+    for i, th in enumerate(theta_list):
+        if len(theta_list) > 1:
+            print(f"--- Ensemble member {i + 1}/{len(theta_list)} ---")
+        member_dist = qcbm_distribution_ibm(
+            th,
+            config,
+            shots=args.shots,
+            backend_name=args.backend,
+            token=token,
+        )
+        member_dists.append(member_dist)
+
+    ibm_dist = np.mean(member_dists, axis=0) if len(member_dists) > 1 else member_dists[0]
 
     # ------------------------------------------------------------------
     # Compare distributions

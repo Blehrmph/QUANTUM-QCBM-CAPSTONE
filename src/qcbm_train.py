@@ -215,10 +215,10 @@ def qcbm_distribution_ibm(
 
     resolved_token = token or os.environ.get("IBM_QUANTUM_TOKEN")
     if resolved_token:
-        service = QiskitRuntimeService(channel="ibm_quantum", token=resolved_token)
+        service = QiskitRuntimeService(channel="ibm_quantum_platform", token=resolved_token)
     else:
         # Falls back to account saved via QiskitRuntimeService.save_account()
-        service = QiskitRuntimeService(channel="ibm_quantum")
+        service = QiskitRuntimeService(channel="ibm_quantum_platform")
 
     if backend_name:
         backend = service.backend(backend_name)
