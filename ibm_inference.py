@@ -301,7 +301,7 @@ def main() -> None:
     print(f"\n  Top-10 states on IBM hardware:")
     for entry in top10:
         bar = "#" * int(entry["prob"] * 200)
-        print(f"    |{entry['state']}⟩  {entry['prob']:.5f}  {bar}")
+        print(f"    |{entry['state']}>  {entry['prob']:.5f}  {bar}")
 
     results["top10_states_ibm"] = top10
 
@@ -314,7 +314,7 @@ def main() -> None:
         print(f"\n  Top-10 states on Aer simulator (reference):")
         for entry in top10_sim:
             bar = "#" * int(entry["prob"] * 200)
-            print(f"    |{entry['state']}⟩  {entry['prob']:.5f}  {bar}")
+            print(f"    |{entry['state']}>  {entry['prob']:.5f}  {bar}")
         results["top10_states_sim"] = top10_sim
 
     # ------------------------------------------------------------------
