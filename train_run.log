@@ -17,3 +17,580 @@ Ensembling QCBM models: 5
   ADAM iter 30/500: loss=7.791227  best=7.791227
   ADAM iter 40/500: loss=7.243588  best=7.243588
   ADAM iter 50/500: loss=6.778414  best=6.778414
+  ADAM iter 60/500: loss=6.377086  best=6.377086
+  ADAM iter 70/500: loss=6.030390  best=6.030390
+  ADAM iter 80/500: loss=5.727252  best=5.727252
+  ADAM iter 90/500: loss=5.453915  best=5.453915
+  ADAM iter 100/500: loss=5.204842  best=5.204842
+  ADAM iter 110/500: loss=4.975947  best=4.975947
+  ADAM iter 120/500: loss=4.763610  best=4.763610
+  ADAM iter 130/500: loss=4.565467  best=4.565467
+  ADAM iter 140/500: loss=4.379728  best=4.379728
+  ADAM iter 150/500: loss=4.205832  best=4.205832
+  ADAM iter 160/500: loss=4.043883  best=4.043883
+  ADAM iter 170/500: loss=3.894094  best=3.894094
+  ADAM iter 180/500: loss=3.756326  best=3.756326
+  ADAM iter 190/500: loss=3.629491  best=3.629491
+  ADAM iter 200/500: loss=3.512019  best=3.512019
+  ADAM iter 210/500: loss=3.402188  best=3.402188
+  ADAM iter 220/500: loss=3.298088  best=3.298088
+  ADAM iter 230/500: loss=3.199558  best=3.199558
+  ADAM iter 240/500: loss=3.108442  best=3.108442
+  ADAM iter 250/500: loss=3.024094  best=3.024094
+  ADAM iter 260/500: loss=2.945274  best=2.945274
+  ADAM iter 270/500: loss=2.871136  best=2.871136
+  ADAM iter 280/500: loss=2.801166  best=2.801166
+  ADAM iter 290/500: loss=2.735328  best=2.735328
+  ADAM iter 300/500: loss=2.673624  best=2.673624
+  ADAM iter 310/500: loss=2.615599  best=2.615599
+  ADAM iter 320/500: loss=2.560948  best=2.560948
+  ADAM iter 330/500: loss=2.510159  best=2.510159
+  ADAM iter 340/500: loss=2.463094  best=2.463094
+  ADAM iter 350/500: loss=2.422838  best=2.422838
+  ADAM iter 360/500: loss=2.388563  best=2.388563
+  ADAM iter 370/500: loss=2.358894  best=2.358894
+  ADAM iter 380/500: loss=2.333903  best=2.333903
+  ADAM iter 390/500: loss=2.315071  best=2.315071
+  ADAM iter 400/500: loss=2.302883  best=2.302883
+  ADAM iter 410/500: loss=2.297942  best=2.297942
+  ADAM iter 420/500: loss=2.301597  best=2.297893
+  ADAM iter 430/500: loss=2.316796  best=2.297893
+  ADAM iter 440/500: loss=2.339702  best=2.297893
+  ADAM iter 450/500: loss=2.356518  best=2.297893
+  ADAM iter 460/500: loss=2.375273  best=2.297893
+  Early stop at iter 461  best_loss=2.297893
+ -> 3 layers
+  Optimizer: ADAM  lr=0.003  beta1=0.9  beta2=0.999
+  Gradient: parameter-shift rule  [batched GPU (301 circuits/job)]
+  ADAM iter 10/1500: loss=14.805694  best=14.805694
+  ADAM iter 20/1500: loss=13.899602  best=13.899602
+  ADAM iter 30/1500: loss=12.876703  best=12.876703
+  ADAM iter 40/1500: loss=11.281356  best=11.281356
+  ADAM iter 50/1500: loss=10.248624  best=10.248624
+  ADAM iter 60/1500: loss=9.653069  best=9.653069
+  ADAM iter 70/1500: loss=8.569066  best=8.519816
+  ADAM iter 80/1500: loss=8.639068  best=8.519816
+  ADAM iter 90/1500: loss=8.462542  best=8.462542
+  ADAM iter 100/1500: loss=8.096615  best=8.096615
+  ADAM iter 110/1500: loss=7.817146  best=7.817146
+  ADAM iter 120/1500: loss=7.846000  best=7.815947
+  ADAM iter 130/1500: loss=7.757352  best=7.757352
+  ADAM iter 140/1500: loss=7.428512  best=7.428512
+  ADAM iter 150/1500: loss=6.963748  best=6.963748
+  ADAM iter 160/1500: loss=6.826384  best=6.806831
+  ADAM iter 170/1500: loss=6.962855  best=6.806831
+  ADAM iter 180/1500: loss=6.842254  best=6.806831
+  ADAM iter 190/1500: loss=6.628853  best=6.628853
+  ADAM iter 200/1500: loss=6.458468  best=6.458468
+  ADAM iter 210/1500: loss=6.240504  best=6.240504
+  ADAM iter 220/1500: loss=6.012888  best=6.012888
+  ADAM iter 230/1500: loss=5.866091  best=5.866091
+  ADAM iter 240/1500: loss=5.837727  best=5.827443
+  ADAM iter 250/1500: loss=5.974165  best=5.827443
+  ADAM iter 260/1500: loss=6.094968  best=5.827443
+  ADAM iter 270/1500: loss=6.170437  best=5.827443
+  ADAM iter 280/1500: loss=6.258951  best=5.827443
+  Early stop at iter 287  best_loss=5.827443
+  Final KL(normal || model) : 3.729885
+  Final KL(anomaly || model): 12.376295  (set --contrast-margin above this to activate contrastive loss)
+  Model 1 (seed=42): normal_kl=3.7299  anomaly_kl=12.3763  gap=8.6464
+  Laplace smoothing alpha=0.5
+  Contrastive loss enabled  lambda=0.8  margin=15.0
+  Warm-start: pre-training 2 layers  ADAM iter 10/500: loss=9.332331  best=9.332331
+  ADAM iter 20/500: loss=8.568136  best=8.568136
+  ADAM iter 30/500: loss=7.913795  best=7.913795
+  ADAM iter 40/500: loss=7.347380  best=7.347380
+  ADAM iter 50/500: loss=6.858898  best=6.858898
+  ADAM iter 60/500: loss=6.442928  best=6.442928
+  ADAM iter 70/500: loss=6.091585  best=6.091585
+  ADAM iter 80/500: loss=5.794323  best=5.794323
+  ADAM iter 90/500: loss=5.542016  best=5.542016
+  ADAM iter 100/500: loss=5.328119  best=5.328119
+  ADAM iter 110/500: loss=5.146226  best=5.146226
+  ADAM iter 120/500: loss=4.991043  best=4.991043
+  ADAM iter 130/500: loss=4.858448  best=4.858448
+  ADAM iter 140/500: loss=4.748535  best=4.748535
+  ADAM iter 150/500: loss=4.661661  best=4.661661
+  ADAM iter 160/500: loss=4.601952  best=4.601952
+  ADAM iter 170/500: loss=4.600998  best=4.588982
+  ADAM iter 180/500: loss=4.467051  best=4.467051
+  ADAM iter 190/500: loss=4.334531  best=4.334531
+  ADAM iter 200/500: loss=4.225232  best=4.225232
+  ADAM iter 210/500: loss=4.132651  best=4.132651
+  ADAM iter 220/500: loss=4.054259  best=4.054259
+  ADAM iter 230/500: loss=3.986613  best=3.986613
+  ADAM iter 240/500: loss=3.926983  best=3.926983
+  ADAM iter 250/500: loss=3.868462  best=3.868462
+  ADAM iter 260/500: loss=3.801840  best=3.801840
+  ADAM iter 270/500: loss=3.736012  best=3.736012
+  ADAM iter 280/500: loss=3.684461  best=3.684461
+  ADAM iter 290/500: loss=3.572358  best=3.572358
+  ADAM iter 300/500: loss=3.433637  best=3.433637
+  ADAM iter 310/500: loss=3.337636  best=3.337636
+  ADAM iter 320/500: loss=3.274080  best=3.274080
+  ADAM iter 330/500: loss=3.233951  best=3.233951
+  ADAM iter 340/500: loss=3.208334  best=3.208334
+  ADAM iter 350/500: loss=3.191724  best=3.191724
+  ADAM iter 360/500: loss=3.182375  best=3.182375
+  ADAM iter 370/500: loss=3.180176  best=3.180035
+  ADAM iter 380/500: loss=3.185329  best=3.180035
+  ADAM iter 390/500: loss=3.197360  best=3.180035
+  ADAM iter 400/500: loss=3.215521  best=3.180035
+  ADAM iter 410/500: loss=3.239444  best=3.180035
+  Early stop at iter 418  best_loss=3.180035
+ -> 3 layers
+  Optimizer: ADAM  lr=0.003  beta1=0.9  beta2=0.999
+  Gradient: parameter-shift rule  [batched GPU (301 circuits/job)]
+  ADAM iter 10/1500: loss=12.866965  best=12.866965
+  ADAM iter 20/1500: loss=11.568612  best=11.568612
+  ADAM iter 30/1500: loss=9.759689  best=9.759689
+  ADAM iter 40/1500: loss=8.138334  best=7.056190
+  ADAM iter 50/1500: loss=7.899689  best=7.056190
+  ADAM iter 60/1500: loss=6.862108  best=6.614886
+  ADAM iter 70/1500: loss=6.186673  best=6.186673
+  ADAM iter 80/1500: loss=6.109711  best=5.352588
+  ADAM iter 90/1500: loss=5.423058  best=5.352588
+  ADAM iter 100/1500: loss=4.777741  best=4.777741
+  ADAM iter 110/1500: loss=4.587884  best=4.587884
+  ADAM iter 120/1500: loss=4.668710  best=4.533331
+  ADAM iter 130/1500: loss=4.756748  best=4.533331
+  ADAM iter 140/1500: loss=4.778938  best=4.533331
+  ADAM iter 150/1500: loss=4.561908  best=4.533331
+  ADAM iter 160/1500: loss=4.332245  best=4.332245
+  ADAM iter 170/1500: loss=4.101887  best=4.076970
+  ADAM iter 180/1500: loss=4.370514  best=4.076970
+  ADAM iter 190/1500: loss=4.243713  best=4.076970
+  ADAM iter 200/1500: loss=4.434957  best=4.076970
+  ADAM iter 210/1500: loss=4.514429  best=4.076970
+  Early stop at iter 218  best_loss=4.076970
+  Final KL(normal || model) : 3.671488
+  Final KL(anomaly || model): 14.486858  (set --contrast-margin above this to activate contrastive loss)
+  Model 2 (seed=139): normal_kl=3.6715  anomaly_kl=14.4869  gap=10.8154
+  Laplace smoothing alpha=0.5
+  Contrastive loss enabled  lambda=0.8  margin=15.0
+  Warm-start: pre-training 2 layers  ADAM iter 10/500: loss=8.377125  best=8.377125
+  ADAM iter 20/500: loss=7.779625  best=7.779625
+  ADAM iter 30/500: loss=7.284755  best=7.284755
+  ADAM iter 40/500: loss=6.876631  best=6.876631
+  ADAM iter 50/500: loss=6.531638  best=6.531638
+  ADAM iter 60/500: loss=6.234849  best=6.234849
+  ADAM iter 70/500: loss=5.966402  best=5.966402
+  ADAM iter 80/500: loss=5.712604  best=5.712604
+  ADAM iter 90/500: loss=5.472811  best=5.472811
+  ADAM iter 100/500: loss=5.252844  best=5.252844
+  ADAM iter 110/500: loss=5.052709  best=5.052709
+  ADAM iter 120/500: loss=4.863226  best=4.863226
+  ADAM iter 130/500: loss=4.678511  best=4.678511
+  ADAM iter 140/500: loss=4.495487  best=4.495487
+  ADAM iter 150/500: loss=4.322742  best=4.322742
+  ADAM iter 160/500: loss=4.164802  best=4.164802
+  ADAM iter 170/500: loss=4.020023  best=4.020023
+  ADAM iter 180/500: loss=3.891852  best=3.891852
+  ADAM iter 190/500: loss=3.777035  best=3.777035
+  ADAM iter 200/500: loss=3.669932  best=3.669932
+  ADAM iter 210/500: loss=3.569040  best=3.569040
+  ADAM iter 220/500: loss=3.472110  best=3.472110
+  ADAM iter 230/500: loss=3.377171  best=3.377171
+  ADAM iter 240/500: loss=3.285471  best=3.285471
+  ADAM iter 250/500: loss=3.203308  best=3.203308
+  ADAM iter 260/500: loss=3.134750  best=3.134750
+  ADAM iter 270/500: loss=3.082814  best=3.082814
+  ADAM iter 280/500: loss=3.048181  best=3.048181
+  ADAM iter 290/500: loss=3.030515  best=3.030515
+  ADAM iter 300/500: loss=3.030925  best=3.028240
+  ADAM iter 310/500: loss=3.054920  best=3.028240
+  ADAM iter 320/500: loss=3.107821  best=3.028240
+  ADAM iter 330/500: loss=3.190813  best=3.028240
+  ADAM iter 340/500: loss=3.324140  best=3.028240
+  Early stop at iter 345  best_loss=3.028240
+ -> 3 layers
+  Optimizer: ADAM  lr=0.003  beta1=0.9  beta2=0.999
+  Gradient: parameter-shift rule  [batched GPU (301 circuits/job)]
+  ADAM iter 10/1500: loss=12.570404  best=12.570404
+  ADAM iter 20/1500: loss=10.717939  best=10.717939
+  ADAM iter 30/1500: loss=9.717270  best=9.717270
+  ADAM iter 40/1500: loss=9.588955  best=9.588955
+  ADAM iter 50/1500: loss=8.978696  best=8.978696
+  ADAM iter 60/1500: loss=7.808880  best=7.808880
+  ADAM iter 70/1500: loss=6.734536  best=6.734536
+  ADAM iter 80/1500: loss=6.271429  best=6.271429
+  ADAM iter 90/1500: loss=5.007772  best=5.007772
+  ADAM iter 100/1500: loss=4.955624  best=4.625975
+  ADAM iter 110/1500: loss=4.929970  best=4.625975
+  ADAM iter 120/1500: loss=4.489737  best=4.489737
+  ADAM iter 130/1500: loss=4.446421  best=4.415215
+  ADAM iter 140/1500: loss=4.448325  best=4.415215
+  ADAM iter 150/1500: loss=4.197917  best=4.197917
+  ADAM iter 160/1500: loss=4.254096  best=4.169326
+  ADAM iter 170/1500: loss=4.323897  best=4.169326
+  ADAM iter 180/1500: loss=4.214678  best=4.169326
+  ADAM iter 190/1500: loss=4.030294  best=4.030294
+  ADAM iter 200/1500: loss=4.083757  best=4.029959
+  ADAM iter 210/1500: loss=3.977925  best=3.977925
+  ADAM iter 220/1500: loss=3.822592  best=3.822592
+  ADAM iter 230/1500: loss=3.604378  best=3.604378
+  ADAM iter 240/1500: loss=3.151970  best=3.151970
+  ADAM iter 250/1500: loss=3.031510  best=3.031510
+  ADAM iter 260/1500: loss=2.966918  best=2.966918
+  ADAM iter 270/1500: loss=2.902067  best=2.902067
+  ADAM iter 280/1500: loss=2.838620  best=2.838620
+  ADAM iter 290/1500: loss=2.774400  best=2.774400
+  ADAM iter 300/1500: loss=2.894655  best=2.759202
+  ADAM iter 310/1500: loss=2.784802  best=2.759202
+  ADAM iter 320/1500: loss=2.762261  best=2.746407
+  ADAM iter 330/1500: loss=2.815433  best=2.746407
+  ADAM iter 340/1500: loss=2.693278  best=2.693278
+  ADAM iter 350/1500: loss=2.575717  best=2.575717
+  ADAM iter 360/1500: loss=2.448558  best=2.448558
+  ADAM iter 370/1500: loss=2.425064  best=2.425064
+  ADAM iter 380/1500: loss=2.403057  best=2.403057
+  ADAM iter 390/1500: loss=2.384248  best=2.384248
+  ADAM iter 400/1500: loss=2.362122  best=2.362122
+  ADAM iter 410/1500: loss=2.322175  best=2.322175
+  ADAM iter 420/1500: loss=2.284849  best=2.284849
+  ADAM iter 430/1500: loss=2.256679  best=2.256679
+  ADAM iter 440/1500: loss=2.234681  best=2.234681
+  ADAM iter 450/1500: loss=2.221248  best=2.221248
+  ADAM iter 460/1500: loss=2.216635  best=2.216635
+  ADAM iter 470/1500: loss=2.209092  best=2.209092
+  ADAM iter 480/1500: loss=2.198215  best=2.198215
+  ADAM iter 490/1500: loss=2.192114  best=2.192114
+  ADAM iter 500/1500: loss=2.185905  best=2.185905
+  ADAM iter 510/1500: loss=2.177851  best=2.177851
+  ADAM iter 520/1500: loss=2.169238  best=2.169238
+  ADAM iter 530/1500: loss=2.162961  best=2.162961
+  ADAM iter 540/1500: loss=2.153145  best=2.153145
+  ADAM iter 550/1500: loss=2.130280  best=2.130280
+  ADAM iter 560/1500: loss=2.096097  best=2.096097
+  ADAM iter 570/1500: loss=2.064563  best=2.064563
+  ADAM iter 580/1500: loss=2.038280  best=2.038280
+  ADAM iter 590/1500: loss=2.016114  best=2.016114
+  ADAM iter 600/1500: loss=2.001405  best=2.001405
+  ADAM iter 610/1500: loss=1.994685  best=1.994685
+  ADAM iter 620/1500: loss=1.989506  best=1.989506
+  ADAM iter 630/1500: loss=1.985480  best=1.985480
+  ADAM iter 640/1500: loss=1.983522  best=1.983522
+  ADAM iter 650/1500: loss=1.984475  best=1.983504
+  ADAM iter 660/1500: loss=1.986346  best=1.983504
+  ADAM iter 670/1500: loss=1.989504  best=1.983504
+  ADAM iter 680/1500: loss=1.995703  best=1.983504
+  ADAM iter 690/1500: loss=2.003534  best=1.983504
+  Early stop at iter 691  best_loss=1.983504
+  Final KL(normal || model) : 1.983517
+  Final KL(anomaly || model): 20.322746  (set --contrast-margin above this to activate contrastive loss)
+  Model 3 (seed=236): normal_kl=1.9835  anomaly_kl=20.3227  gap=18.3392
+  Laplace smoothing alpha=0.5
+  Contrastive loss enabled  lambda=0.8  margin=15.0
+  Warm-start: pre-training 2 layers  ADAM iter 10/500: loss=8.019234  best=8.019234
+  ADAM iter 20/500: loss=7.416987  best=7.416987
+  ADAM iter 30/500: loss=6.908368  best=6.908368
+  ADAM iter 40/500: loss=6.485920  best=6.485920
+  ADAM iter 50/500: loss=6.137003  best=6.137003
+  ADAM iter 60/500: loss=5.845225  best=5.845225
+  ADAM iter 70/500: loss=5.596116  best=5.596116
+  ADAM iter 80/500: loss=5.378996  best=5.378996
+  ADAM iter 90/500: loss=5.186168  best=5.186168
+  ADAM iter 100/500: loss=5.013807  best=5.013807
+  ADAM iter 110/500: loss=4.858637  best=4.858637
+  ADAM iter 120/500: loss=4.718280  best=4.718280
+  ADAM iter 130/500: loss=4.590740  best=4.590740
+  ADAM iter 140/500: loss=4.474327  best=4.474327
+  ADAM iter 150/500: loss=4.367340  best=4.367340
+  ADAM iter 160/500: loss=4.267250  best=4.267250
+  ADAM iter 170/500: loss=4.168603  best=4.168603
+  ADAM iter 180/500: loss=4.066021  best=4.066021
+  ADAM iter 190/500: loss=3.953789  best=3.953789
+  ADAM iter 200/500: loss=3.833893  best=3.833893
+  ADAM iter 210/500: loss=3.714396  best=3.714396
+  ADAM iter 220/500: loss=3.600124  best=3.600124
+  ADAM iter 230/500: loss=3.493242  best=3.493242
+  ADAM iter 240/500: loss=3.394573  best=3.394573
+  ADAM iter 250/500: loss=3.303982  best=3.303982
+  ADAM iter 260/500: loss=3.215611  best=3.215611
+  ADAM iter 270/500: loss=3.132943  best=3.132943
+  ADAM iter 280/500: loss=3.054574  best=3.054574
+  ADAM iter 290/500: loss=2.981767  best=2.981767
+  ADAM iter 300/500: loss=2.914381  best=2.914381
+  ADAM iter 310/500: loss=2.851703  best=2.851703
+  ADAM iter 320/500: loss=2.793600  best=2.793600
+  ADAM iter 330/500: loss=2.739328  best=2.739328
+  ADAM iter 340/500: loss=2.688436  best=2.688436
+  ADAM iter 350/500: loss=2.641221  best=2.641221
+  ADAM iter 360/500: loss=2.598501  best=2.598501
+  ADAM iter 370/500: loss=2.561148  best=2.561148
+  ADAM iter 380/500: loss=2.526963  best=2.526963
+  ADAM iter 390/500: loss=2.497124  best=2.497124
+  ADAM iter 400/500: loss=2.470182  best=2.470182
+  ADAM iter 410/500: loss=2.448070  best=2.448070
+  ADAM iter 420/500: loss=2.433353  best=2.433353
+  ADAM iter 430/500: loss=2.424784  best=2.424784
+  ADAM iter 440/500: loss=2.421183  best=2.421183
+  ADAM iter 450/500: loss=2.423907  best=2.421165
+  ADAM iter 460/500: loss=2.432317  best=2.421165
+  ADAM iter 470/500: loss=2.437350  best=2.421165
+  ADAM iter 480/500: loss=2.445008  best=2.421165
+  ADAM iter 490/500: loss=2.449129  best=2.421165
+  Early stop at iter 491  best_loss=2.421165
+ -> 3 layers
+  Optimizer: ADAM  lr=0.003  beta1=0.9  beta2=0.999
+  Gradient: parameter-shift rule  [batched GPU (301 circuits/job)]
+  ADAM iter 10/1500: loss=12.284248  best=12.284248
+  ADAM iter 20/1500: loss=11.283484  best=10.095387
+  ADAM iter 30/1500: loss=10.004459  best=10.004459
+  ADAM iter 40/1500: loss=9.493255  best=7.132117
+  ADAM iter 50/1500: loss=8.568302  best=7.132117
+  ADAM iter 60/1500: loss=7.428163  best=7.132117
+  ADAM iter 70/1500: loss=8.019047  best=7.132117
+  ADAM iter 80/1500: loss=7.763902  best=7.132117
+  Early stop at iter 84  best_loss=7.132117
+  Final KL(normal || model) : 6.869209
+  Final KL(anomaly || model): 12.879931  (set --contrast-margin above this to activate contrastive loss)
+  Model 4 (seed=333): normal_kl=6.8692  anomaly_kl=12.8799  gap=6.0107
+  Laplace smoothing alpha=0.5
+  Contrastive loss enabled  lambda=0.8  margin=15.0
+  Warm-start: pre-training 2 layers  ADAM iter 10/500: loss=10.208364  best=10.208364
+  ADAM iter 20/500: loss=9.417893  best=9.417893
+  ADAM iter 30/500: loss=8.623233  best=8.623233
+  ADAM iter 40/500: loss=7.883335  best=7.883335
+  ADAM iter 50/500: loss=7.234864  best=7.234864
+  ADAM iter 60/500: loss=6.683968  best=6.683968
+  ADAM iter 70/500: loss=6.220268  best=6.220268
+  ADAM iter 80/500: loss=5.832685  best=5.832685
+  ADAM iter 90/500: loss=5.507155  best=5.507155
+  ADAM iter 100/500: loss=5.222578  best=5.222578
+  ADAM iter 110/500: loss=4.969240  best=4.969240
+  ADAM iter 120/500: loss=4.751110  best=4.751110
+  ADAM iter 130/500: loss=4.565114  best=4.565114
+  ADAM iter 140/500: loss=4.405889  best=4.405889
+  ADAM iter 150/500: loss=4.269282  best=4.269282
+  ADAM iter 160/500: loss=4.152307  best=4.152307
+  ADAM iter 170/500: loss=4.051009  best=4.051009
+  ADAM iter 180/500: loss=3.964345  best=3.964345
+  ADAM iter 190/500: loss=3.898685  best=3.898685
+  ADAM iter 200/500: loss=3.789820  best=3.789820
+  ADAM iter 210/500: loss=3.662158  best=3.662158
+  ADAM iter 220/500: loss=3.549201  best=3.549201
+  ADAM iter 230/500: loss=3.448817  best=3.448817
+  ADAM iter 240/500: loss=3.360120  best=3.360120
+  ADAM iter 250/500: loss=3.283204  best=3.283204
+  ADAM iter 260/500: loss=3.220418  best=3.220418
+  ADAM iter 270/500: loss=3.172775  best=3.172775
+  ADAM iter 280/500: loss=3.138029  best=3.138029
+  ADAM iter 290/500: loss=3.115789  best=3.115789
+  ADAM iter 300/500: loss=3.104870  best=3.104870
+  ADAM iter 310/500: loss=3.103546  best=3.103087
+  ADAM iter 320/500: loss=3.109283  best=3.103087
+  ADAM iter 330/500: loss=3.120759  best=3.103087
+  ADAM iter 340/500: loss=3.138682  best=3.103087
+  ADAM iter 350/500: loss=3.170897  best=3.103087
+  Early stop at iter 356  best_loss=3.103087
+ -> 3 layers
+  Optimizer: ADAM  lr=0.003  beta1=0.9  beta2=0.999
+  Gradient: parameter-shift rule  [batched GPU (301 circuits/job)]
+  ADAM iter 10/1500: loss=11.850505  best=11.850505
+  ADAM iter 20/1500: loss=10.065530  best=10.065530
+  ADAM iter 30/1500: loss=9.373550  best=9.291110
+  ADAM iter 40/1500: loss=8.637164  best=8.637164
+  ADAM iter 50/1500: loss=8.393040  best=8.393040
+  ADAM iter 60/1500: loss=7.483487  best=7.483487
+  ADAM iter 70/1500: loss=7.549036  best=7.447855
+  ADAM iter 80/1500: loss=7.610156  best=7.447855
+  ADAM iter 90/1500: loss=7.033728  best=7.033728
+  ADAM iter 100/1500: loss=6.813444  best=6.769364
+  ADAM iter 110/1500: loss=7.119192  best=6.769364
+  ADAM iter 120/1500: loss=7.008243  best=6.769364
+  ADAM iter 130/1500: loss=6.629915  best=6.629915
+  ADAM iter 140/1500: loss=6.010526  best=6.010526
+  ADAM iter 150/1500: loss=6.015745  best=5.901727
+  ADAM iter 160/1500: loss=6.101907  best=5.901727
+  ADAM iter 170/1500: loss=6.040638  best=5.901727
+  ADAM iter 180/1500: loss=6.041071  best=5.901727
+  ADAM iter 190/1500: loss=5.963699  best=5.901727
+  Early stop at iter 193  best_loss=5.901727
+  Final KL(normal || model) : 4.583853
+  Final KL(anomaly || model): 13.344168  (set --contrast-margin above this to activate contrastive loss)
+  Model 5 (seed=430): normal_kl=4.5839  anomaly_kl=13.3442  gap=8.7603
+  Ensemble weights: ['0.164', '0.206', '0.349', '0.114', '0.167']
+
+Stage 1 metrics:
+  Metric         F1-t (val)   F1-t (test)   Youden (val)   Youden (test)
+  --------------------------------------------------------------------
+  ROC-AUC                          0.9616                         0.9616
+  PR-AUC                           0.9080                         0.9080
+  F1                 0.8853        0.8830         0.8806          0.8797
+  Precision          0.9373        0.9384         0.8470          0.8480
+  Recall/DR          0.8389        0.8339         0.9170          0.9139
+  FAR                0.0070        0.0068         0.0206          0.0203
+  MCC                0.8736        0.8714         0.8659          0.8649
+  TP                  23565         46623          25759           51096
+  FP                   1577          3062           4654            9162
+  FN                   4527          9288           2333            4815
+  TN                 224304        448974         221227          442874
+
+  F1 threshold    : 2.890893  (val F1=0.8853)
+  Youden threshold: 2.190507  (val J=0.8963)
+  Tail threshold  : 2.700410  (p=0.990)
+
+  FAR-constrained operating points (test ROC curve -- max recall at each FAR budget):
+    Target FAR   Actual FAR    Recall/DR       F1      MCC      TP      FP
+  ----------------------------------------------------------------------
+           1%         0.9%        83.6%    0.8744    0.8608    46721     4234
+           2%         2.0%        91.1%    0.8790    0.8642    50926     9029
+           5%         2.3%        91.4%    0.8712    0.8556    51102    10300
+          10%         9.9%        91.4%    0.6734    0.6519    51108    44775
+       min-FAR         0.2%        63.7%    0.7726    0.7722    35622      682  <- max-threshold (FAR floor)
+
+  Precision-constrained operating points (val-selected, test-evaluated | min_recall>=30%):
+    Target Prec   Precision   Recall/DR       F1      FAR      MCC      TP      FP
+  ------------------------------------------------------------------------------
+           65%       98.1%       63.7%    0.7726     0.2%    0.7722    35622      682
+           70%       98.1%       63.7%    0.7726     0.2%    0.7722    35622      682
+           75%       98.1%       63.7%    0.7726     0.2%    0.7722    35622      682
+           80%       98.1%       63.7%    0.7726     0.2%    0.7722    35622      682
+
+  Majority-vote ensemble (>=3/5 models agree -- precision-optimised):
+  Metric         Majority Vote   vs    Weighted Avg (Youden)
+  ------------------------------------------------------------
+  ROC-AUC               0.9541                         0.9616  (-0.0074)
+  PR-AUC                0.8943                         0.9080  (-0.0137)
+  F1                    0.8774                         0.8797  (-0.0023)
+  Precision             0.9325                         0.8480  (+0.0846)
+  Recall/DR             0.8283                         0.9139  (-0.0855)
+  FAR                   0.0074                         0.0203  (-0.0129)
+  MCC                   0.8651                         0.8649  (+0.0001)
+  TP                     46313                          51096
+  FP                      3350                           9162
+
+  Two-stage calibration (LR + Isotonic):
+  Metric            LR only    LR+Isotonic   vs     F1-threshold
+  -----------------------------------------------------------------
+  ROC-AUC            0.9618         0.9671                 0.9616  (+0.0055)
+  PR-AUC             0.8862         0.8931                 0.9080  (-0.0148)
+  F1                 0.9015         0.9015                 0.8830  (+0.0185)
+  Precision          0.8952         0.8952                 0.9384  (-0.0432)
+  Recall/DR          0.9080         0.9080                 0.8339  (+0.0741)
+  FAR                0.0131         0.0131                 0.0068  (+0.0064)
+  MCC                0.8893         0.8893                 0.8714  (+0.0179)
+  TP                  50765          50765                  46623
+  FP                   5943           5943                   3062
+
+====================================================================
+  BITSTRING COVERAGE ANALYSIS & FAR FLOOR DERIVATION
+====================================================================
+
+  State space:  2^15 = 32,768 possible bitstrings
+
+  Training set coverage:
+    Normal training samples  :    1,582,625
+    Unique bitstrings seen   :          185  (0.56% of state space)
+    Unseen bitstrings        :       32,583  (99.44% of state space)
+
+  Normal test coverage:
+    Normal test samples      :      452,036
+    Unique bitstrings        :          156
+    Covered by training      :          151  (96.79%)
+    NOT in training set      :            5  (FAR floor source)
+
+  Unseen-bitstring FAR floor (coverage-based):
+    Formula: unseen_FAR = |normal_test w/ unseen bitstring| / |normal_test|
+           = 5 / 452,036
+           = 0.0011%  [NEGLIGIBLE]
+    Good-Turing E[coverage] = 1-(1-1/32,768)^1,582,625
+                           = 1.000000  (saturated)
+
+  Anomaly bitstring overlap (true FAR cause):
+    Anomaly test samples       :       55,911
+    Anomaly bitstrings in train:       55,764  (99.7%)
+    ** 99.7% of anomaly bitstrings are ALSO in normal training **
+    The QCBM distinguishes anomalies by FREQUENCY in the learned distribution,
+    not by unique patterns. The contrastive loss pushes down probability of
+    shared bitstrings seen more often in anomaly traffic, causing normal samples
+    that share those bitstrings to score as false alarms.
+
+  CONCLUSION: Observed FAR (~7.6%) = contrastive score overlap, NOT unseen bitstrings.
+====================================================================
+Stage 2: Training XGBoost broad-family classifier (Flood / Probe / Exploit / Persistence)...
+  True class priors: {'Exploit': 0.1583, 'Flood': 0.6845, 'Persistence': 0.0096, 'Probe': 0.1476}
+Stage 2 metrics (broad families, true anomalies only):
+  Accuracy : 0.8826
+  Macro-F1 : 0.6584
+
+Per-family report:
+              precision    recall  f1-score   support
+
+     Exploit       0.61      0.89      0.72      8921
+       Flood       0.99      0.92      0.95     38245
+ Persistence       0.86      0.08      0.15       521
+       Probe       0.85      0.77      0.81      8224
+
+    accuracy                           0.88     55911
+   macro avg       0.83      0.66      0.66     55911
+weighted avg       0.91      0.88      0.89     55911
+
+Stage 2 predictions on Stage 1 flagged samples (broad families):
+  Exploit: 8706
+  Flood: 34927
+  Persistence: 19
+  Probe: 6033
+
+============================================================
+  END-TO-END PIPELINE (Stage 1 + Stage 2)
+============================================================
+  Total test attacks          : 55,911
+  Stage 1 flagged (all)       : 49,685  (incl. FP)
+  Stage 1 true positives      : 46,623  (attacks correctly flagged)
+  Stage 1 recall              : 0.8339
+  S2 correct given S1 flagged : 41,208  (correct family classification)
+  S2 accuracy | S1 TPs        : 0.8839
+  End-to-end recall           : 0.7370  (attacks correctly detected+classified)
+  End-to-end precision        : 0.8294  (of S1 flags, correctly classified attacks)
+============================================================
+Stage 3: Training XGBoost specific-category classifiers per attack family...
+  [Exploit] trained on 30903 samples | categories: Exploits, Shellcode
+    Test accuracy: 0.9565  Macro-F1: 0.7847
+                  precision    recall  f1-score   support
+    
+        Exploits       1.00      0.96      0.98      8622
+       Shellcode       0.43      0.94      0.59       299
+    
+        accuracy                           0.96      8921
+       macro avg       0.71      0.95      0.78      8921
+    weighted avg       0.98      0.96      0.96      8921
+    
+  [Flood] trained on 133608 samples | categories: DoS, Generic
+    Test accuracy: 0.9813  Macro-F1: 0.9403
+                  precision    recall  f1-score   support
+    
+             DoS       0.81      0.99      0.89      2938
+         Generic       1.00      0.98      0.99     35307
+    
+        accuracy                           0.98     38245
+       macro avg       0.90      0.99      0.94     38245
+    weighted avg       0.98      0.98      0.98     38245
+    
+  [Persistence] trained on 1872 samples | categories: Backdoor, Worms
+    Test accuracy: 0.9923  Macro-F1: 0.9741
+                  precision    recall  f1-score   support
+    
+        Backdoor       1.00      0.99      1.00       480
+           Worms       0.93      0.98      0.95        41
+    
+        accuracy                           0.99       521
+       macro avg       0.96      0.98      0.97       521
+    weighted avg       0.99      0.99      0.99       521
+    
+  [Probe] trained on 28811 samples | categories: Analysis, Fuzzers, Reconnaissance
+    Test accuracy: 0.8543  Macro-F1: 0.7715
+                    precision    recall  f1-score   support
+    
+          Analysis       0.34      0.98      0.51       533
+           Fuzzers       0.98      0.84      0.90      4980
+    Reconnaissance       0.96      0.86      0.91      2711
+    
+          accuracy                           0.85      8224
+         macro avg       0.76      0.89      0.77      8224
+      weighted avg       0.93      0.85      0.88      8224
+    
+Stage 3 complete: 4 family models trained: ['Exploit', 'Flood', 'Persistence', 'Probe']
+Saving artifacts...
+Pipeline complete.

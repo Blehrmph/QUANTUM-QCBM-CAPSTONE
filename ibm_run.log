@@ -1,0 +1,74 @@
+Loading artifacts from: artifacts/best_run
+
+Ensemble: 5 members — will run all and average distributions
+Circuit: 15 qubits  |  3 layers  |  150 parameters per member
+Shots  : 32,768
+Backend: ibm_fez
+
+--- Ensemble member 1/5 ---
+  [IBM] Backend  : ibm_fez  (156 qubits)
+  [IBM] Depth after transpilation : 203 gates
+  [IBM] Submitting 32768-shot job...
+  [IBM] Job ID   : d7n30plqrg3c738lsghg
+  [IBM] Waiting for result (queue times vary — check status at quantum.ibm.com)...
+--- Ensemble member 2/5 ---
+  [IBM] Backend  : ibm_fez  (156 qubits)
+  [IBM] Depth after transpilation : 204 gates
+  [IBM] Submitting 32768-shot job...
+  [IBM] Job ID   : d7n313s3g2mc7393376g
+  [IBM] Waiting for result (queue times vary — check status at quantum.ibm.com)...
+--- Ensemble member 3/5 ---
+  [IBM] Backend  : ibm_fez  (156 qubits)
+  [IBM] Depth after transpilation : 203 gates
+  [IBM] Submitting 32768-shot job...
+  [IBM] Job ID   : d7n319baq2pc73a2a2gg
+  [IBM] Waiting for result (queue times vary — check status at quantum.ibm.com)...
+--- Ensemble member 4/5 ---
+  [IBM] Backend  : ibm_fez  (156 qubits)
+  [IBM] Depth after transpilation : 207 gates
+  [IBM] Submitting 32768-shot job...
+  [IBM] Job ID   : d7n31eat99kc73d34ds0
+  [IBM] Waiting for result (queue times vary — check status at quantum.ibm.com)...
+--- Ensemble member 5/5 ---
+  [IBM] Backend  : ibm_fez  (156 qubits)
+  [IBM] Depth after transpilation : 203 gates
+  [IBM] Submitting 32768-shot job...
+  [IBM] Job ID   : d7n31j43g2mc739337m0
+  [IBM] Waiting for result (queue times vary — check status at quantum.ibm.com)...
+
+=======================================================
+  Distribution comparison: IBM hardware vs Aer simulator
+=======================================================
+  States visited (IBM)  : 29,116 / 32,768  (88.9%)
+  TVD  (hardware vs sim): 0.5990  (0=identical, 1=completely different)
+  KL   (sim || hardware): 2.6752
+  Top-50 overlap        : 0.0%
+
+  Top-10 states on IBM hardware:
+    |000001111110011>  0.01309  ##
+    |000011011110000>  0.01020  ##
+    |000001001110001>  0.00399  
+    |000011101110010>  0.00359  
+    |000111101110010>  0.00229  
+    |000000111110011>  0.00199  
+    |000011011110001>  0.00172  
+    |000101001110001>  0.00150  
+    |000001111110000>  0.00143  
+    |000000011110011>  0.00142  
+
+  Top-10 states on Aer simulator (reference):
+    |110011111100000>  0.04970  #########
+    |000011110110000>  0.03129  ######
+    |010011101110000>  0.00966  #
+    |100011100100000>  0.00949  #
+    |010011101111000>  0.00594  #
+    |101111100100000>  0.00566  #
+    |011111101110000>  0.00556  #
+    |100011110110000>  0.00507  #
+    |100011100101000>  0.00494  
+    |110011111000000>  0.00468  
+
+  Results saved to : artifacts\best_run\ibm_results.json
+  Distribution saved: artifacts\best_run\ibm_dist.npy
+=======================================================
+

@@ -1,0 +1,53 @@
+Loaded IBM distribution  : artifacts\best_run\ibm_dist.npy  (32,768 states, sum=1.0000)
+Loaded simulator baseline: artifacts\best_run\hier_qcbm_model_dist.npy
+
+Reproducing preprocessing from: best_config.json
+  Loading dataset: datasets/UNSW-NB15_cleaned.csv
+  Engineering categorical features...
+  Features (9): sbytes, Sload, dbytes, Dload, Dpkts, is_not_tcp, is_int_state, is_con_state, sttl
+  Splitting train / val / test...
+  Applying log1p...
+  Scaling (standard)...
+  Fitting bins (strategy=anomaly_aware)...
+  Test set : 507,947 samples  (55,911 attacks, 452,036 normal)
+
+============================================================
+  SCORING RESULTS
+============================================================
+
+  [IBM hardware]
+    ROC-AUC : 0.8629
+    PR-AUC  : 0.3834
+    F1      : 0.5300  (threshold=10.3972)
+    Precision: 0.3901
+    Recall  : 0.8263
+    FAR     : 0.1598
+    MCC     : 0.4934
+
+  [Aer simulator (live recompute)]
+    ROC-AUC : 0.9561
+    PR-AUC  : 0.8802
+    F1      : 0.8694  (threshold=9.8205)
+    Precision: 0.9007
+    Recall  : 0.8402
+    FAR     : 0.0115
+    MCC     : 0.8545
+
+============================================================
+  COMPARISON: IBM hardware vs Aer simulator
+============================================================
+  Metric         IBM hardware    Sim (saved)      Delta
+  ----------------------------------------------------
+  ROC-AUC              0.8629         0.9671    -0.1042
+  PR-AUC               0.3834         0.9080    -0.5246
+  F1                   0.5300         0.9015    -0.3715
+  Recall               0.8263         0.9080    -0.0817
+  FAR                  0.1598         0.0131    +0.1466
+  MCC                  0.4934         0.8714    -0.3780
+============================================================
+
+  Interpretation: delta shows the hardware noise penalty.
+  TVD=0.60 between distributions does not map linearly to ROC-AUC drop
+  because anomaly scoring uses relative log-probabilities, not raw probs.
+
+  Results saved to: artifacts\best_run\ibm_score_metrics.json
