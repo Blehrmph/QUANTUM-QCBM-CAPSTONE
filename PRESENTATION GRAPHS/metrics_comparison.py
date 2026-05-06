@@ -10,7 +10,6 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyArrowPatch
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -38,8 +37,19 @@ SUBTEXT = "#555555"
 BORDER  = "#CCCCCC"
 GRIDCOL = "#E8E8E8"
 
-C_SIM = "#4B92C8"   # steel blue  — Aer Simulator
-C_IBM = "#C43B2C"   # dark red    — IBM Hardware
+from matplotlib.colors import LinearSegmentedColormap
+
+# red(0) -> yellow(0.5) -> green(1) gradient for bar colors
+SCORE_CMAP = LinearSegmentedColormap.from_list(
+    "score_grad",
+    ["#D32F2F", "#FDD835", "#2E7D32"],  # red -> yellow -> green
+    N=256,
+)
+
+def bar_color(value, force_green=False):
+    if force_green:
+        return "#2E7D32"
+    return SCORE_CMAP(float(np.clip(value, 0, 1)))
 
 STYLE = {
     "figure.facecolor": BG,     "axes.facecolor":  PANEL,
@@ -63,8 +73,12 @@ def main():
     fig.patch.set_facecolor(BG)
     ax.set_facecolor(PANEL)
 
-    bars_sim = ax.bar(x, SIM_VALS, w + 0.1,
-                      color=C_SIM, label="Aer Simulator",
+    colors = [
+        bar_color(v, force_green=low)
+        for v, low in zip(SIM_VALS, LOW_BETTER)
+    ]
+
+    bars_sim = ax.bar(x, SIM_VALS, w + 0.1, color=colors,
                       zorder=3, clip_on=False)
 
     # value labels on top of each bar
